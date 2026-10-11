@@ -91,7 +91,10 @@ export function App() {
   useEffect(() => {
     if (initialInvite && store.config) toast('Ce téléphone est déjà relié à vos données.');
   }, [store]);
-  useEffect(() => window.scrollTo(0, 0), [tab, sub]);
+  // Accolades obligatoires : dans les Chrome récents, scrollTo renvoie une promesse, que React prendrait pour une fonction de nettoyage.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [tab, sub]);
 
   if (!store.config) {
     return (

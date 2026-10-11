@@ -14,9 +14,12 @@ export class ErrorScreen extends Component<{ children: ReactNode }, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    const where = (info.componentStack || '').trim().split('\n').slice(0, 4).join('\n');
+    const lines = (text: string | null | undefined, n: number) =>
+      (text || '').trim().split('\n').slice(0, n).map((l) => l.trim());
+    const stack = lines(error.stack, 4).filter((l) => l.startsWith('at '));
+    const where = lines(info.componentStack, 3);
     this.setState({
-      detail: `${error.name}: ${error.message}\n${where}\n${navigator.userAgent}`
+      detail: [`${error.name}: ${error.message}`, ...stack, '—', ...where, navigator.userAgent].join('\n')
     });
   }
 

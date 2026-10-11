@@ -39,6 +39,24 @@ async function phone(browser, scheme = 'light') {
   const net = { down: false };
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, colorScheme: scheme, serviceWorkers: 'block', hasTouch: true, isMobile: true });
   await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: BASE });
+  // Comme dans les Chrome récents : les méthodes de défilement renvoient une promesse.
+  await context.addInitScript(() => {
+    for (const target of [window, Element.prototype]) {
+      for (const name of ['scrollTo', 'scrollBy', 'scroll']) {
+        const original = target[name];
+        if (typeof original !== 'function') continue;
+        target[name] = function (...args) {
+          original.apply(this, args);
+          return Promise.resolve();
+        };
+      }
+    }
+    const intoView = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function (...args) {
+      intoView.apply(this, args);
+      return Promise.resolve();
+    };
+  });
   await context.route('https://script.google.com/**', async (route) => {
     if (net.down) return route.abort('internetdisconnected');
     const req = route.request();
