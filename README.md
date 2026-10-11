@@ -6,7 +6,7 @@ Le budget de deux sœurs : les dépenses de chacune, leurs dépenses communes et
 - Un petit script Google, collé une seule fois dans cette feuille, synchronise vos deux téléphones.
 - L'appli est une appli web installable, hébergée gratuitement sur GitHub Pages.
 
-**Où en est l'appli** : étape 1 sur 4, avec le budget de chacune, les dépenses, les paramètres, la calculatrice et la synchro. Viendront ensuite le commun, puis les abonnements avec l'APK Android et les alertes, et enfin les prévisions.
+**Où en est l'appli** : étape 2 sur 4. Elle a le budget de chacune, les dépenses, les paramètres, la calculatrice et la synchro (étape 1), ainsi que le commun, le solde, « On est quittes » et les abonnements (étape 2). Viendront ensuite l'APK Android avec les alertes, puis les prévisions.
 
 ## Installer le script Google (une seule fois, environ 5 minutes)
 

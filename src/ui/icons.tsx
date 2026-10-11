@@ -34,3 +34,17 @@ export const IconCloudOff = () => (
   <Svg size={16} sw={2}><path d="M3 3l18 18" /><path d="M8 7.5A6 6 0 0 1 17.7 10H18a4 4 0 0 1 2.5 7.1M16 19H7a5 5 0 0 1-1.5-9.8" /></Svg>
 );
 export const IconCloud = () => <Svg size={16} sw={2}><path d="M18 10h-.3A6 6 0 1 0 7 17h11a4 4 0 0 0 0-8z" /></Svg>;
+export const IconPeople = () => (
+  <Svg><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c.6-3.4 3.2-5.5 6.5-5.5s5.9 2.1 6.5 5.5" /><circle cx="17" cy="9" r="2.5" /><path d="M17.5 14.5c2.2.3 3.6 2 4 4.5" /></Svg>
+);
+export const IconCal = () => <Svg><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></Svg>;
+export const IconBell = () => (
+  <Svg size={18} sw={2}><path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></Svg>
+);
+export const IconBellOff = () => (
+  <Svg size={18} sw={2}><path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /><path d="M3 3l18 18" /></Svg>
+);
+export const IconWarn = () => (
+  <Svg size={18} sw={2}><path d="M12 9v4" /><path d="M12 17h.01" /><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /></Svg>
+);
+export const IconDown = () => <Svg size={18} sw={2.2}><path d="M6 9l6 6 6-6" /></Svg>;

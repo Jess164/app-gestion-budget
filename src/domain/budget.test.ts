@@ -1,19 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { catState, categoryRows, monthSummary, recentExpenses, shareAmt } from './budget';
 import { defaultRecords, catId } from './defaults';
-import type { AnyRecord, ExpenseRec, Snapshot } from './types';
-
-function snapshotOf(records: AnyRecord[]): Snapshot {
-  const live = records.filter((r) => !r.deleted);
-  const members: any = {};
-  live.forEach((r) => { if (r.type === 'member') members[r.key] = r; });
-  return {
-    members,
-    prefs: live.find((r) => r.type === 'prefs') as any,
-    categories: live.filter((r) => r.type === 'category') as any,
-    expenses: live.filter((r) => r.type === 'expense') as any
-  };
-}
+import type { ExpenseRec } from './types';
+import { snapshotOf } from './testkit';
 
 let n = 0;
 function exp(owner: ExpenseRec['owner'], date: string, amount: number, cat: string, extra: Partial<ExpenseRec> = {}): ExpenseRec {

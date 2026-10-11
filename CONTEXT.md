@@ -1,4 +1,4 @@
-# Appli budget (nom provisoire)
+# PasD'Tal'
 
 Appli partagée entre deux sœurs pour suivre leurs dépenses et leurs abonnements, et régler leurs dépenses communes.
 
@@ -97,6 +97,10 @@ _Avoid_: période d'essai, trial
 **Alerte**:
 Une notification envoyée 3 jours (réglable) avant la date limite de résiliation. Seule la membre sur Android en reçoit, pour ses abonnements perso et les abonnements communs.
 _Avoid_: rappel
+
+**Dépense ajoutée toute seule**:
+La dépense qu'un abonnement crée le jour d'une échéance. On peut la modifier, ou la supprimer si le prélèvement n'a pas eu lieu.
+_Avoid_: dépense automatique, prélèvement
 
 **Résilié**:
 L'état d'un abonnement arrêté. Il ne génère plus ni dépense ni alerte.

@@ -63,3 +63,14 @@ export function dateLong(s: string): string {
 export function timeShort(ms: number): string {
   return new Date(ms).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 }
+
+/** Nombre de jours d'une date à l'autre (négatif si « to » est passé). */
+export function daysBetween(from: string, to: string): number {
+  return Math.round((parse(to).getTime() - parse(from).getTime()) / 86400000);
+}
+
+export function inDays(n: number): string {
+  if (n === 0) return "aujourd'hui";
+  if (n === 1) return 'demain';
+  return n > 1 ? `dans ${n} jours` : `il y a ${-n} jour${n < -1 ? 's' : ''}`;
+}

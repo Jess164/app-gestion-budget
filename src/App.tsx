@@ -1,22 +1,33 @@
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState, type ReactElement } from 'react';
 import { todayISO } from './domain/dates';
-import type { ExpenseRec, MemberKey } from './domain/types';
+import type { ExpenseRec, MemberKey, SubscriptionRec } from './domain/types';
 import { parseInvite } from './data/invite';
 import { useStore, type Store } from './data/store';
 import { Budget } from './screens/Budget';
 import { Calculator } from './screens/Calculator';
-import { ExpenseForm } from './screens/ExpenseForm';
+import { Commun } from './screens/Commun';
+import { ExpenseForm, type ExpenseKind } from './screens/ExpenseForm';
 import { Invite } from './screens/Invite';
 import { Settings } from './screens/Settings';
 import { Setup } from './screens/Setup';
-import { IconCalc, IconChart, IconPlus } from './ui/icons';
+import { SubscriptionForm } from './screens/SubscriptionForm';
+import { Subscriptions } from './screens/Subscriptions';
+import { IconCal, IconCalc, IconChart, IconPeople, IconPlus } from './ui/icons';
 import { toast } from './ui/kit';
 
-type Tab = 'budget' | 'calc';
+type Tab = 'budget' | 'commun' | 'abos' | 'calc';
 type Sub =
-  | { name: 'expense'; existing?: ExpenseRec; amount?: string }
+  | { name: 'expense'; existing?: ExpenseRec; amount?: string; kind?: ExpenseKind }
+  | { name: 'subscription'; existing?: SubscriptionRec; kind?: ExpenseKind }
   | { name: 'settings' }
   | { name: 'invite'; fresh?: boolean };
+
+const TABS: Array<[Tab, string, () => ReactElement]> = [
+  ['budget', 'Budget', IconChart],
+  ['commun', 'Commun', IconPeople],
+  ['abos', 'Abonnements', IconCal],
+  ['calc', 'Calculatrice', IconCalc]
+];
 
 const SYNC_EVERY_MS = 3 * 60 * 1000;
 
@@ -114,14 +125,18 @@ export function App() {
           <ExpenseForm
             existing={sub.existing}
             initialAmount={sub.amount}
+            initialKind={sub.kind}
             today={today}
-            onDone={(m) => {
+            onDone={(m, kind) => {
               setSub(null);
-              setTab('budget');
-              setViewing(me);
+              if (tab === 'calc') setTab(kind === 'commun' ? 'commun' : 'budget');
+              if (tab === 'budget' || tab === 'calc') setViewing(me);
               if (m && m <= today.slice(0, 7)) setMonth(m);
             }}
           />
+        )}
+        {sub.name === 'subscription' && (
+          <SubscriptionForm existing={sub.existing} initialKind={sub.kind} today={today} onDone={() => setSub(null)} />
         )}
         {sub.name === 'settings' && <Settings systemDark={systemDark} onBack={() => setSub(null)} onInvite={() => setSub({ name: 'invite' })} />}
         {sub.name === 'invite' && <Invite fresh={sub.fresh} onBack={() => setSub(null)} />}
@@ -129,9 +144,15 @@ export function App() {
     );
   }
 
+  const fab =
+    tab === 'budget' && who === me ? { label: 'Dépense', open: (): Sub => ({ name: 'expense' }) }
+    : tab === 'commun' ? { label: 'Dépense commune', open: (): Sub => ({ name: 'expense', kind: 'commun' }) }
+    : tab === 'abos' ? { label: 'Abonnement', open: (): Sub => ({ name: 'subscription' }) }
+    : null;
+
   return (
     <div className="app">
-      {tab === 'budget' ? (
+      {tab === 'budget' && (
         <Budget
           month={month}
           setMonth={setMonth}
@@ -141,21 +162,29 @@ export function App() {
           onEdit={(e) => setSub({ name: 'expense', existing: e })}
           onSettings={() => setSub({ name: 'settings' })}
         />
-      ) : (
-        <Calculator onAddExpense={(amount) => setSub({ name: 'expense', amount })} />
       )}
-      {tab === 'budget' && who === me && (
-        <button className="fab" type="button" onClick={() => setSub({ name: 'expense' })}>
-          <IconPlus />Dépense
+      {tab === 'commun' && (
+        <Commun
+          month={month}
+          setMonth={setMonth}
+          today={today}
+          onEdit={(e) => setSub({ name: 'expense', existing: e })}
+          onOpenSub={(x) => setSub({ name: 'subscription', existing: x })}
+        />
+      )}
+      {tab === 'abos' && <Subscriptions today={today} onOpen={(x) => setSub({ name: 'subscription', existing: x })} />}
+      {tab === 'calc' && <Calculator onAddExpense={(amount) => setSub({ name: 'expense', amount })} />}
+      {fab && (
+        <button className="fab" type="button" onClick={() => setSub(fab.open())}>
+          <IconPlus />{fab.label}
         </button>
       )}
       <nav className="tabbar" aria-label="Navigation principale">
-        <button className="tab" type="button" aria-current={tab === 'budget' ? 'page' : undefined} onClick={() => setTab('budget')}>
-          <span className="tab-ic"><IconChart /></span>Budget
-        </button>
-        <button className="tab" type="button" aria-current={tab === 'calc' ? 'page' : undefined} onClick={() => setTab('calc')}>
-          <span className="tab-ic"><IconCalc /></span>Calculatrice
-        </button>
+        {TABS.map(([id, label, Icon]) => (
+          <button key={id} className="tab" type="button" aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}>
+            <span className="tab-ic"><Icon /></span>{label}
+          </button>
+        ))}
       </nav>
     </div>
   );

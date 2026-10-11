@@ -1,29 +1,48 @@
 import { useRef, useState } from 'react';
-import { categoriesOf } from '../domain/budget';
+import { categoriesOf, myPartPct, partAFrom } from '../domain/budget';
+import { dateLong } from '../domain/dates';
 import { eur, evalExpr, hasOp, numToInput, parseAmount } from '../domain/money';
-import type { ExpenseRec } from '../domain/types';
+import { other, type ExpenseRec } from '../domain/types';
 import { newId } from '../data/ids';
 import { useStore } from '../data/store';
-import { Sheet, SubHead, toast } from '../ui/kit';
+import { PayerAndPart, Seg, Sheet, SubHead, toast } from '../ui/kit';
 
 const OPS: Array<[string, string]> = [['+', 'Plus'], ['−', 'Moins'], ['×', 'Multiplier'], ['÷', 'Diviser']];
 
-export function ExpenseForm(props: { existing?: ExpenseRec; initialAmount?: string; today: string; onDone: (month?: string) => void }) {
+export type ExpenseKind = 'perso' | 'commun';
+
+export function ExpenseForm(props: {
+  existing?: ExpenseRec;
+  initialAmount?: string;
+  initialKind?: ExpenseKind;
+  today: string;
+  onDone: (month?: string, kind?: ExpenseKind) => void;
+}) {
   const store = useStore();
   const s = store.snapshot();
   const me = store.config!.me;
-  const cats = categoriesOf(s, me);
+  const her = s.members[other(me)];
   const ex = props.existing;
+  const [kind, setKind] = useState<ExpenseKind>(ex ? (ex.owner === 'commun' ? 'commun' : 'perso') : props.initialKind ?? 'perso');
+  const cats = categoriesOf(s, kind === 'commun' ? 'commun' : me);
   const [expr, setExpr] = useState(ex ? numToInput(ex.amount) : props.initialAmount ?? '');
   const [label, setLabel] = useState(ex?.label ?? '');
   const [date, setDate] = useState(ex?.date ?? props.today);
   const [cat, setCat] = useState(ex?.cat ?? cats[0]?.id ?? '');
+  const [payerIsMe, setPayerIsMe] = useState(ex?.payer ? ex.payer === me : true);
+  const [part, setPart] = useState(myPartPct(me, ex?.partA ?? 0.5));
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const amountRef = useRef<HTMLInputElement>(null);
 
   const value = evalExpr(expr);
   const preview = hasOp(expr) && Number.isFinite(value) ? `= ${eur(value)}` : '';
+  const isC = kind === 'commun';
+
+  function changeKind(k: ExpenseKind) {
+    setKind(k);
+    setCat(categoriesOf(s, k === 'commun' ? 'commun' : me)[0]?.id ?? '');
+  }
 
   function addOp(op: string) {
     const v = expr.trimEnd();
@@ -42,31 +61,47 @@ export function ExpenseForm(props: { existing?: ExpenseRec; initialAmount?: stri
     if (!date) return setError('Choisis une date.');
     if (!cat) return setError('Choisis une catégorie.');
     const now = Date.now();
-    store.put<ExpenseRec>({
+    const rec: ExpenseRec = {
       id: ex?.id ?? newId('dep'),
       type: 'expense',
-      owner: me,
+      owner: isC ? 'commun' : ex?.owner ?? me,
       date,
       amount,
       label: label.trim(),
       cat,
-      createdAt: ex?.createdAt ?? now
-    });
-    toast(ex ? 'Dépense modifiée' : `Dépense ajoutée : ${eur(amount)}`);
-    props.onDone(date.slice(0, 7));
+      createdAt: ex?.createdAt ?? now,
+      updatedAt: 0,
+      by: ''
+    };
+    if (isC) {
+      rec.payer = payerIsMe ? me : other(me);
+      rec.partA = partAFrom(me, part);
+    }
+    if (ex?.subId) rec.subId = ex.subId;
+    store.put<ExpenseRec>(rec);
+    toast(ex ? 'Dépense modifiée' : `${isC ? 'Dépense commune ajoutée' : 'Dépense ajoutée'} : ${eur(amount)}`);
+    props.onDone(date.slice(0, 7), kind);
   }
 
   function remove() {
     if (!ex) return;
     store.remove(ex.id);
     toast('Dépense supprimée');
-    props.onDone();
+    props.onDone(undefined, kind);
   }
 
+  const title = ex ? 'Modifier la dépense' : isC ? 'Dépense commune' : 'Nouvelle dépense';
   return (
     <>
-      <SubHead title={ex ? 'Modifier la dépense' : 'Nouvelle dépense'} onBack={() => props.onDone()} />
+      <SubHead title={title} onBack={() => props.onDone(undefined, kind)} />
       <main className="screen sub" style={{ paddingTop: 8 }}>
+        {!ex && <Seg<ExpenseKind> wide items={[['perso', 'Perso'], ['commun', 'Commun']]} value={kind} onChange={changeKind} label="Type de dépense" />}
+        {ex?.subId && (
+          <p className="info">
+            <b>Ajoutée toute seule le jour du prélèvement.</b>
+            <span>Supprime-la si le prélèvement n'a pas eu lieu, ou corrige le montant s'il a changé.</span>
+          </p>
+        )}
         <div className="field">
           <label className="flabel" htmlFor="f-amount">Montant</label>
           <input
@@ -106,6 +141,16 @@ export function ExpenseForm(props: { existing?: ExpenseRec; initialAmount?: stri
             ))}
           </div>
         </div>
+        {isC && (
+          <PayerAndPart
+            herName={her.name}
+            payerIsMe={payerIsMe}
+            onPayer={setPayerIsMe}
+            part={part}
+            onPart={setPart}
+            amount={Number.isFinite(value) ? value : null}
+          />
+        )}
         {error && <p className="form-error" role="alert">{error}</p>}
         <button className="btn primary block" type="button" onClick={save}>{ex ? 'Enregistrer' : 'Ajouter la dépense'}</button>
         {ex && <button className="link-btn" type="button" onClick={() => setConfirmDelete(true)}>Supprimer cette dépense</button>}
@@ -116,7 +161,9 @@ export function ExpenseForm(props: { existing?: ExpenseRec; initialAmount?: stri
           onClose={() => setConfirmDelete(false)}
           actions={<button className="btn block danger" type="button" onClick={remove}>Supprimer</button>}
         >
-          <p className="muted">{ex.label || 'Cette dépense'} · {eur(ex.amount)}. Elle disparaîtra aussi chez ta sœur.</p>
+          <p className="muted">
+            {ex.label || 'Cette dépense'} · {eur(ex.amount)} · {dateLong(ex.date)}. Elle disparaîtra aussi chez {her.name}.
+          </p>
         </Sheet>
       )}
     </>

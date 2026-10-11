@@ -1,6 +1,8 @@
 import { useSyncExternalStore } from 'react';
+import { todayISO } from '../domain/dates';
 import { defaultRecords } from '../domain/defaults';
-import type { AnyRecord, CategoryRec, ExpenseRec, MemberKey, MemberRec, PrefsRec, Snapshot } from '../domain/types';
+import { dueAutoExpenses } from '../domain/subs';
+import type { AnyRecord, CategoryRec, ExpenseRec, MemberKey, MemberRec, PrefsRec, SettlementRec, Snapshot, SubscriptionRec } from '../domain/types';
 import { newId, newSecret } from './ids';
 import type { Invite } from './invite';
 import { applyServerResponse, type LocalData } from './merge';
@@ -150,13 +152,17 @@ export class Store {
     let prefs = DEFAULT_PREFS;
     const categories: CategoryRec[] = [];
     const expenses: ExpenseRec[] = [];
+    const subscriptions: SubscriptionRec[] = [];
+    const settlements: SettlementRec[] = [];
     for (const r of live) {
       if (r.type === 'member') members[r.key] = r;
       else if (r.type === 'prefs') prefs = r;
       else if (r.type === 'category') categories.push(r);
       else if (r.type === 'expense') expenses.push(r);
+      else if (r.type === 'subscription') subscriptions.push(r);
+      else if (r.type === 'settlement') settlements.push(r);
     }
-    this.snap = { members, prefs, categories, expenses };
+    this.snap = { members, prefs, categories, expenses, subscriptions, settlements };
     return this.snap;
   }
 
@@ -174,6 +180,28 @@ export class Store {
     this.emit();
     this.schedule(1500);
     return full;
+  }
+
+  /**
+   * Ajoute les dépenses des échéances d'abonnement passées qui n'existent pas encore.
+   * Chaque échéance a un identifiant fixe : si l'autre téléphone l'a déjà ajoutée, ou si elle a été supprimée, on n'y touche pas.
+   */
+  materialize(today: string = todayISO()): number {
+    if (!this.config) return 0;
+    const known = Object.values(this.data.records).filter((r): r is ExpenseRec => r.type === 'expense' && !!r.subId);
+    const due = dueAutoExpenses(this.snapshot().subscriptions, today, known).filter((e) => !this.data.records[e.id]);
+    if (!due.length) return 0;
+    const records = { ...this.data.records };
+    const pending = { ...this.data.pending };
+    for (const e of due) {
+      records[e.id] = { ...e, by: this.device } as ExpenseRec;
+      pending[e.id] = e.updatedAt;
+    }
+    this.data = { ...this.data, records, pending };
+    this.persist();
+    this.emit();
+    this.schedule(1500);
+    return due.length;
   }
 
   remove(id: string) {
@@ -261,6 +289,8 @@ export class Store {
       })
       .finally(() => {
         this.inflight = null;
+        // Après la synchro (réussie ou non), pour tenir compte des abonnements ajoutés ou résiliés par l'autre téléphone.
+        this.materialize();
         this.emit();
         if (this.again) {
           this.again = false;

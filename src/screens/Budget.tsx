@@ -1,6 +1,7 @@
 import { categoryRows, findCategory, firstMonth, monthSummary, recentExpenses, shareAmt, type CategoryRow, type MonthSummary } from '../domain/budget';
 import { dateShort, monthLabel, shiftMonth, timeShort } from '../domain/dates';
 import { eur, eurShort } from '../domain/money';
+import { prevus } from '../domain/subs';
 import { other, type ExpenseRec, type MemberKey, type Snapshot } from '../domain/types';
 import { useStore, type Store } from '../data/store';
 import { IconCloud, IconCloudOff, IconGear, IconLeft, IconRefresh, IconRight } from '../ui/icons';
@@ -44,7 +45,9 @@ export function Budget(props: {
   const cur = props.today.slice(0, 7);
   const min = firstMonth(s, cur);
   const sum = monthSummary(s, who, props.month);
-  const rows = categoryRows(s, who, props.month);
+  const planned = prevus(s, who, props.month, props.today);
+  const plannedTotal = planned.reduce((t, p) => t + p.amount, 0);
+  const rows = categoryRows(s, who, props.month, planned.filter((p) => p.sub.owner === who).map((p) => ({ cat: p.sub.cat, amount: p.amount })));
   const recent = recentExpenses(s, who, props.month, 30);
   return (
     <main className="screen">
@@ -64,14 +67,14 @@ export function Budget(props: {
       </div>
       <SyncLine store={store} />
       {ro && <p className="pill-note">Budget de {s.members[who].name} · lecture seule</p>}
-      <ResteCard sum={sum} poss={ro ? 'sa' : 'ta'} />
+      <ResteCard sum={sum} planned={plannedTotal} poss={ro ? 'sa' : 'ta'} />
       <CategoryCard rows={rows} seuil={s.prefs.seuil} />
       <section className="card" aria-label="Dernières dépenses">
         <h2>Dernières dépenses</h2>
         <div className="list">
           {recent.length === 0 && <p className="empty">Aucune dépense ce mois-ci.{!ro && ' Touche « Dépense » pour en ajouter une.'}</p>}
           {recent.map((e) => (
-            <ExpenseRow key={e.id} e={e} who={who} s={s} today={props.today} onOpen={!ro && e.owner === me ? () => props.onEdit(e) : undefined} />
+            <ExpenseRow key={e.id} e={e} who={who} s={s} today={props.today} poss={ro ? 'sa' : 'ta'} onOpen={!ro && (e.owner === me || e.owner === 'commun') ? () => props.onEdit(e) : undefined} />
           ))}
         </div>
       </section>
@@ -79,13 +82,14 @@ export function Budget(props: {
   );
 }
 
-function ResteCard({ sum, poss }: { sum: MonthSummary; poss: string }) {
+function ResteCard({ sum, planned, poss }: { sum: MonthSummary; planned: number; poss: string }) {
   if (!sum.plafond || sum.reste === null) {
     return (
       <section className="note" aria-label="Dépensé ce mois">
         <span className="tape" aria-hidden="true" />
         <span className="label">Dépensé ce mois</span>
         <div className="big-row"><span className="big-hand">{eur(sum.perso + sum.commun)}</span></div>
+        {planned > 0 && <span className="hand-line">et {eur(planned)} prévus d'ici la fin du mois</span>}
         <span className="muted sm">Pas de plafond du mois. Tu peux en fixer un dans Paramètres.</span>
       </section>
     );
@@ -93,6 +97,7 @@ function ResteCard({ sum, poss }: { sum: MonthSummary; poss: string }) {
   const pct = (x: number) => Math.max(0, Math.min(100, (x / sum.plafond!) * 100));
   const p1 = pct(sum.perso);
   const p2 = Math.min(pct(sum.commun), 100 - p1);
+  const p3 = Math.min(pct(planned), 100 - p1 - p2);
   const over = sum.reste < -0.004;
   return (
     <section className="note" aria-label="Reste du mois">
@@ -105,11 +110,13 @@ function ResteCard({ sum, poss }: { sum: MonthSummary; poss: string }) {
       <div className="dash-bar" aria-hidden="true">
         <i style={{ width: `${p1}%`, background: 'var(--note-perso)' }} />
         <i style={{ width: `${p2}%`, background: 'var(--note-commun)' }} />
+        {p3 > 0 && <i className="hatch" style={{ width: `${p3}%`, ['--hc' as string]: 'var(--note-perso)' }} />}
       </div>
       <div className="legend">
         <span><i style={{ background: 'var(--note-perso)' }} />{eur(sum.perso)} perso</span>
         {sum.commun > 0 && <span><i style={{ background: 'var(--note-commun)' }} />{eur(sum.commun)} {poss} part du commun</span>}
       </div>
+      {planned > 0 && !over && <span className="hand-line">dont {eur(planned)} déjà prévus</span>}
     </section>
   );
 }
@@ -129,38 +136,53 @@ function CategoryCard({ rows, seuil }: { rows: CategoryRow[]; seuil: number }) {
 }
 
 function CategoryLine({ row }: { row: CategoryRow }) {
-  const { cat, spent, state } = row;
+  const { cat, spent, prevu, state } = row;
+  const total = spent + prevu;
   const fill = state === 'over' ? 'var(--over)' : state === 'warn' ? 'var(--warn)' : 'var(--c)';
-  const w = cat.plafond ? Math.min(100, (spent / cat.plafond) * 100) : 0;
+  const w1 = cat.plafond ? Math.min(100, (spent / cat.plafond) * 100) : 0;
+  const w2 = cat.plafond ? Math.min(100 - w1, (prevu / cat.plafond) * 100) : 0;
+  const edge = w1 + w2 > 0 && w1 + w2 < 99.5;
   return (
     <div className="cat" style={{ ['--c' as string]: cat.color, ['--fill' as string]: fill }}>
       <div className="cat-head">
         <span className="cat-name"><i className="sw" aria-hidden="true" /><span>{cat.name}</span></span>
         <span className="cat-amt">
-          <b>{eur(spent)}</b> {cat.plafond ? `/ ${eurShort(cat.plafond)}` : <span className="muted sm">sans plafond</span>}
+          <b>{eur(total)}</b> {cat.plafond ? `/ ${eurShort(cat.plafond)}` : <span className="muted sm">sans plafond</span>}
         </span>
       </div>
       {cat.plafond ? (
-        <div className="bar" aria-hidden="true"><i className={w > 0 && w < 99.5 ? 'edge' : ''} style={{ width: `${w}%` }} /></div>
+        <div className="bar" aria-hidden="true">
+          <i className={edge && w2 <= 0 ? 'edge' : ''} style={{ width: `${w1}%` }} />
+          {w2 > 0 && <i className={'hatch' + (edge ? ' edge' : '')} style={{ width: `${w2}%`, ['--hc' as string]: fill }} />}
+        </div>
       ) : null}
-      {state === 'over' && <div className="cat-foot"><span className="badge over">Dépassé de {eur(spent - cat.plafond!)}</span></div>}
-      {state === 'warn' && <div className="cat-foot"><span className="badge warn">Plus que {eur(cat.plafond! - spent)}</span></div>}
+      {(state === 'over' || state === 'warn' || prevu > 0) && (
+        <div className="cat-foot">
+          {state === 'over' && <span className="badge over">Dépassé de {eur(total - cat.plafond!)}</span>}
+          {state === 'warn' && <span className="badge warn">Plus que {eur(cat.plafond! - total)}</span>}
+          {prevu > 0 && <span className="muted sm">dont {eur(prevu)} prévus</span>}
+        </div>
+      )}
     </div>
   );
 }
 
-function ExpenseRow({ e, who, s, today, onOpen }: { e: ExpenseRec; who: MemberKey; s: Snapshot; today: string; onOpen?: () => void }) {
+function ExpenseRow({ e, who, s, today, poss, onOpen }: { e: ExpenseRec; who: MemberKey; s: Snapshot; today: string; poss: string; onOpen?: () => void }) {
   const c = findCategory(s, e.cat, e.owner);
   const isC = e.owner === 'commun';
   const inner = (
     <>
       <span className="li-main">
         <span className="li-title">{e.label || c.name}</span>
-        <span className="li-sub">{c.name} · {dateShort(e.date, today)}{isC && <span className="badge soft">Commun</span>}</span>
+        <span className="li-sub">
+          {c.name} · {dateShort(e.date, today)}
+          {isC && <span className="badge soft">Commun</span>}
+          {e.subId && <span className="badge plain">ajoutée toute seule</span>}
+        </span>
       </span>
       <span className="li-amt">
         {eur(e.amount)}
-        {isC && <span className="sm muted">part {eur(shareAmt(who, e))}</span>}
+        {isC && <span className="sm muted">{poss} part {eur(shareAmt(who, e))}</span>}
       </span>
     </>
   );

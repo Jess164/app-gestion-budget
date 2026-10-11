@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { categoriesOf, categoryInUse } from '../domain/budget';
 import { PALETTE } from '../domain/defaults';
 import { numToInput, parseAmount } from '../domain/money';
-import { other, type CategoryRec, type MemberRec, type PrefsRec } from '../domain/types';
+import { other, type CategoryRec, type MemberRec, type Owner, type PrefsRec } from '../domain/types';
 import { newId } from '../data/ids';
 import { useStore, type ThemeMode } from '../data/store';
 import { IconPlus } from '../ui/icons';
 import { Seg, Sheet, SubHead, toast } from '../ui/kit';
 import { SyncLine } from './Budget';
+import { isIOS } from './Setup';
 
 /** Champ qui n'enregistre qu'en quittant la saisie, pour ne pas synchroniser à chaque lettre. */
 function CommitInput(props: {
@@ -47,6 +48,7 @@ export function Settings(props: { onBack: () => void; onInvite: () => void; syst
   const mine = s.members[me];
   const hers = s.members[other(me)];
   const cats = categoriesOf(s, me);
+  const communCats = categoriesOf(s, 'commun');
   const [open, setOpen] = useState<string | null>(null);
   const [toDelete, setToDelete] = useState<CategoryRec | null>(null);
   const [forget, setForget] = useState(false);
@@ -55,13 +57,35 @@ export function Settings(props: { onBack: () => void; onInvite: () => void; syst
   const savePrefs = (patch: Partial<PrefsRec>) => store.put<PrefsRec>({ ...s.prefs, ...patch });
   const saveCat = (c: CategoryRec, patch: Partial<CategoryRec>) => { store.put<CategoryRec>({ ...c, ...patch }); };
 
-  function addCategory() {
-    const used = new Set(cats.map((c) => c.color));
+  function addCategory(owner: Owner) {
+    const list = owner === 'commun' ? communCats : cats;
+    const used = new Set(list.map((c) => c.color));
     const color = PALETTE.find((p) => !used.has(p)) ?? PALETTE[0];
-    const c = store.put<CategoryRec>({ id: newId('cat'), type: 'category', owner: me, name: 'Nouvelle catégorie', color, plafond: null, order: cats.length });
+    const order = list.reduce((m, c) => Math.max(m, c.order + 1), 0);
+    const c = store.put<CategoryRec>({ id: newId('cat'), type: 'category', owner, name: 'Nouvelle catégorie', color, plafond: null, order });
     setOpen(c.id);
     setTimeout(() => document.getElementById(`name-${c.id}`)?.focus(), 50);
   }
+
+  const catRow = (c: CategoryRec, withCap: boolean) => (
+    <div className={'cat-set' + (withCap ? '' : ' no-cap')} key={c.id} style={{ ['--c' as string]: c.color }}>
+      <button className="color-btn" type="button" aria-expanded={open === c.id} aria-label={`Couleur de ${c.name}`} onClick={() => setOpen(open === c.id ? null : c.id)} />
+      <CommitInput id={`name-${c.id}`} label={`Nom de ${c.name}`} value={c.name} onCommit={(v) => v.trim() && saveCat(c, { name: v.trim() })} />
+      {withCap && (
+        <CommitInput label={`Plafond de ${c.name}`} inputMode="decimal" placeholder="Aucun" value={c.plafond ? numToInput(c.plafond) : ''} onCommit={(v) => saveCat(c, { plafond: parseAmount(v) })} />
+      )}
+      {open === c.id && (
+        <div className="cat-edit">
+          <div className="palette" role="group" aria-label="Choisir une couleur">
+            {PALETTE.map((p) => (
+              <button key={p} type="button" style={{ ['--c' as string]: p }} aria-pressed={p === c.color} aria-label={`Couleur ${p}`} onClick={() => saveCat(c, { color: p })} />
+            ))}
+          </div>
+          <button className="link-btn" type="button" style={{ alignSelf: 'flex-start' }} onClick={() => setToDelete(c)}>Supprimer « {c.name} »</button>
+        </div>
+      )}
+    </div>
+  );
 
   const modeText =
     store.mode === 'auto'
@@ -111,26 +135,32 @@ export function Settings(props: { onBack: () => void; onInvite: () => void; syst
           <p className="muted sm">Touche une couleur pour la changer ou supprimer la catégorie. Laisse le plafond vide pour ne pas en avoir.</p>
           <div>
             <div className="cat-set cat-set-head" aria-hidden="true"><span /><span>Nom</span><span>Plafond</span></div>
-            {cats.map((c) => (
-              <div className="cat-set" key={c.id} style={{ ['--c' as string]: c.color }}>
-                <button className="color-btn" type="button" aria-expanded={open === c.id} aria-label={`Couleur de ${c.name}`} onClick={() => setOpen(open === c.id ? null : c.id)} />
-                <CommitInput id={`name-${c.id}`} label={`Nom de ${c.name}`} value={c.name} onCommit={(v) => v.trim() && saveCat(c, { name: v.trim() })} />
-                <CommitInput label={`Plafond de ${c.name}`} inputMode="decimal" placeholder="Aucun" value={c.plafond ? numToInput(c.plafond) : ''} onCommit={(v) => saveCat(c, { plafond: parseAmount(v) })} />
-                {open === c.id && (
-                  <div className="cat-edit">
-                    <div className="palette" role="group" aria-label="Choisir une couleur">
-                      {PALETTE.map((p) => (
-                        <button key={p} type="button" style={{ ['--c' as string]: p }} aria-pressed={p === c.color} aria-label={`Couleur ${p}`} onClick={() => saveCat(c, { color: p })} />
-                      ))}
-                    </div>
-                    <button className="link-btn" type="button" style={{ alignSelf: 'flex-start' }} onClick={() => setToDelete(c)}>Supprimer « {c.name} »</button>
-                  </div>
-                )}
-              </div>
-            ))}
+            {cats.map((c) => catRow(c, true))}
           </div>
-          <button className="btn dashed block" type="button" onClick={addCategory}><IconPlus />Nouvelle catégorie</button>
+          <button className="btn dashed block" type="button" onClick={() => addCategory(me)}><IconPlus />Nouvelle catégorie</button>
         </section>
+
+        <section className="card">
+          <h2 className="set-title">Catégories communes</h2>
+          <p className="muted sm">Vous les modifiez toutes les deux. Le commun n'a pas de plafond.</p>
+          <div>{communCats.map((c) => catRow(c, false))}</div>
+          <button className="btn dashed block" type="button" onClick={() => addCategory('commun')}><IconPlus />Nouvelle catégorie commune</button>
+        </section>
+
+        {!isIOS() && (
+          <section className="card">
+            <h2 className="set-title">Alertes</h2>
+            <div className="set-row">
+              <span>Délai d'alerte par défaut</span>
+              <div className="stepper">
+                <button className="icon-btn" type="button" aria-label="Un jour de moins" onClick={() => savePrefs({ alerteJours: Math.max(0, s.prefs.alerteJours - 1) })}>−</button>
+                <output>{s.prefs.alerteJours}&nbsp;j</output>
+                <button className="icon-btn" type="button" aria-label="Un jour de plus" onClick={() => savePrefs({ alerteJours: Math.min(30, s.prefs.alerteJours + 1) })}>+</button>
+              </div>
+            </div>
+            <p className="muted sm">Pour les nouveaux abonnements. Les notifications arriveront avec l'APK Android.</p>
+          </section>
+        )}
 
         <section className="card">
           <h2 className="set-title">Synchro</h2>
@@ -139,7 +169,7 @@ export function Settings(props: { onBack: () => void; onInvite: () => void; syst
           <button className="btn primary block" type="button" onClick={props.onInvite}>Inviter ma sœur</button>
           <button className="link-btn" type="button" onClick={() => setForget(true)}>Déconnecter ce téléphone</button>
         </section>
-        <p className="foot-note">PasD'Tal' · étape 1 · tes données restent dans ton Google Drive.</p>
+        <p className="foot-note">PasD'Tal' · étape 2 · tes données restent dans ton Google Drive.</p>
       </main>
 
       {toDelete && (
@@ -153,7 +183,7 @@ export function Settings(props: { onBack: () => void; onInvite: () => void; syst
           }
         >
           <p className="muted">
-            {categoryInUse(s, toDelete.id) ? 'Ses dépenses ne disparaissent pas : elles seront rangées dans « Autre ».' : 'Aucune dépense ne l\'utilise.'}
+            {categoryInUse(s, toDelete.id) ? 'Ses dépenses et abonnements ne disparaissent pas : ils seront rangés dans « Autre ».' : 'Aucune dépense ne l\'utilise.'}
           </p>
         </Sheet>
       )}

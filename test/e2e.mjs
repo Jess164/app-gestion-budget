@@ -201,6 +201,110 @@ try {
   await B.page.waitForTimeout(500);
   ok((await text(B.page)).includes('Cinéma'), 'B : données gardées après rechargement');
 
+  // --- Étape 2 : le commun, le solde et les abonnements ---
+  const pad = (n) => String(n).padStart(2, '0');
+  const isoOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const now = new Date();
+  const today = isoOf(now);
+  const soon = isoOf(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 3));
+  const soonSameMonth = soon.slice(0, 7) === today.slice(0, 7);
+  const sync = async (P) => { await P.page.getByRole('button', { name: 'Mettre à jour' }).click(); await P.page.waitForTimeout(400); };
+
+  await A.page.getByRole('button', { name: 'Commun' }).click();
+  ok((await text(A.page)).toLowerCase().includes('vous êtes quittes'), 'A : commun vide, vous êtes quittes');
+  await A.page.getByRole('button', { name: 'Dépense commune' }).click();
+  await A.page.fill('#f-amount', '40');
+  await A.page.fill('#f-label', 'Courses du week-end');
+  t = (await text(A.page)).toLowerCase();
+  ok(t.includes('payé par') && t.includes('20,00'), 'A : part de 50 % affichée (20,00 chacune)');
+  await A.page.getByRole('button', { name: 'Ajouter la dépense' }).click();
+  t = (await text(A.page)).toLowerCase();
+  ok(t.includes('léa te doit') && t.includes('20,00'), 'A : Léa te doit 20,00');
+  await A.page.getByRole('button', { name: 'Dépense commune' }).click();
+  await A.page.fill('#f-amount', '30');
+  await A.page.fill('#f-label', 'Cadeau maman');
+  await A.page.getByRole('button', { name: 'Léa', exact: true }).click();
+  await A.page.locator('#f-part').fill('70');
+  ok((await text(A.page)).toLowerCase().includes('21,00'), 'A : part réglée à 70 % (21,00)');
+  await A.page.getByRole('button', { name: 'Ajouter la dépense' }).click();
+  // Léa doit 20 ; Jess doit 21 sur le cadeau payé par Léa : Jess doit 1,00.
+  t = (await text(A.page)).toLowerCase();
+  ok(t.includes('tu dois à léa') && t.includes('1,00'), 'A : tu dois 1,00 à Léa');
+
+  // Abonnement commun prélevé aujourd'hui, payé par Léa : la dépense s'ajoute toute seule.
+  await A.page.getByRole('button', { name: 'Abonnements', exact: true }).click();
+  await A.page.getByRole('button', { name: 'Abonnement', exact: true }).click();
+  await A.page.fill('#a-name', 'Netflix');
+  await A.page.fill('#a-amount', '13,49');
+  ok((await text(A.page)).toLowerCase().includes('161,88'), 'A : Netflix soit 161,88 €/an');
+  await A.page.fill('#a-next', today);
+  await A.page.getByRole('button', { name: 'Commun', exact: true }).first().click();
+  await A.page.getByRole('button', { name: 'Léa', exact: true }).click();
+  await shot(A.page, '09-abonnement-commun');
+  await A.page.getByRole('button', { name: "Ajouter l'abonnement" }).click();
+  t = (await text(A.page)).toLowerCase();
+  ok(t.includes('netflix') && t.includes('6,75'), 'A : Netflix dans la liste, ta part 6,75');
+  // Abonnement perso dans 3 jours, avec un préavis.
+  await A.page.getByRole('button', { name: 'Abonnement', exact: true }).click();
+  await A.page.fill('#a-name', 'Spotify');
+  await A.page.fill('#a-amount', '12');
+  await A.page.fill('#a-next', soon);
+  await A.page.fill('#a-pre', '1');
+  ok((await text(A.page)).toLowerCase().includes('moins 1 jour de préavis'), 'A : date limite = échéance moins le préavis');
+  await A.page.getByRole('button', { name: "Ajouter l'abonnement" }).click();
+  t = (await text(A.page)).toLowerCase();
+  ok(t.includes('spotify') && t.includes('résilier avant le'), 'A : Spotify avec sa date limite');
+  ok(t.includes('25,49') || t.includes('18,75'), 'A : coût par mois (12 + 6,75 = 18,75, ou 25,49 hors mois)');
+  await shot(A.page, '10-abonnements');
+
+  await A.page.getByRole('button', { name: 'Commun', exact: true }).click();
+  t = (await text(A.page)).toLowerCase();
+  ok(t.includes('ajoutée toute seule') && t.includes('netflix'), 'A : dépense Netflix ajoutée toute seule');
+  // 1,00 + 6,75 (part de Jess sur Netflix payé par Léa) = 7,75
+  ok(t.includes('tu dois à léa') && t.includes('7,75'), 'A : tu dois 7,75 à Léa');
+  await shot(A.page, '11-commun-A');
+  await A.page.getByRole('button', { name: 'Budget', exact: true }).click();
+  t = (await text(A.page)).toLowerCase();
+  if (soonSameMonth) ok(t.includes('déjà prévus') && t.includes('12,00'), 'A : Spotify compté dans les prévus du mois');
+  await shot(A.page, '13-budget-prevus');
+  await sync(A);
+
+  // Léa récupère tout, rembourse, et ne voit qu'une seule dépense Netflix.
+  await sync(B);
+  await B.page.getByRole('button', { name: 'Commun', exact: true }).click();
+  t = (await text(B.page)).toLowerCase();
+  ok(t.includes('jess te doit') && t.includes('7,75'), 'B : Jess te doit 7,75');
+  await shot(B.page, '12-commun-B-sombre');
+  await B.page.getByRole('button', { name: 'On est quittes' }).click();
+  ok(((await text(B.page)).toLowerCase()).includes("jess t'a remboursé 7,75"), 'B : confirmation du remboursement');
+  await B.page.getByRole('button', { name: 'Oui, on est quittes' }).click();
+  t = (await text(B.page)).toLowerCase();
+  ok(t.includes('vous êtes quittes') && t.includes('remboursement'), 'B : quittes, remboursement noté');
+  await B.page.waitForTimeout(2200);
+  await sync(B);
+  await sync(A);
+  await A.page.getByRole('button', { name: 'Commun', exact: true }).click();
+  t = (await text(A.page)).toLowerCase();
+  ok(t.includes('vous êtes quittes'), 'A : quittes après la synchro');
+  const netflixRows = await A.page.locator('.li-title', { hasText: /^Netflix$/ }).count();
+  ok(netflixRows === 1, `une seule dépense Netflix malgré les deux téléphones (${netflixRows})`);
+
+  await B.page.getByRole('button', { name: 'Abonnements', exact: true }).click();
+  ok(((await text(B.page)).toLowerCase()).includes('6,74'), 'B : ses abonnements, sa part de Netflix 6,74');
+  await B.page.getByRole('button', { name: 'Jess', exact: true }).click();
+  await B.page.getByRole('button', { name: /Spotify/ }).click();
+  t = (await text(B.page)).toLowerCase();
+  ok(t.includes('lecture seule') && !t.includes("j'ai résilié"), 'B : abonnement de Jess en lecture seule');
+  await B.page.getByRole('button', { name: 'Retour' }).click();
+
+  // Jess résilie Spotify.
+  await A.page.getByRole('button', { name: 'Abonnements', exact: true }).click();
+  await A.page.getByRole('button', { name: /Spotify/ }).click();
+  await A.page.getByRole('button', { name: "J'ai résilié" }).click();
+  await A.page.getByRole('button', { name: "Oui, j'ai résilié" }).click();
+  t = (await text(A.page)).toLowerCase();
+  ok(t.includes('résiliés') && t.includes('plus de dépense'), 'A : Spotify rangé dans les résiliés');
+
   const width = await A.page.evaluate(() => document.documentElement.scrollWidth);
   ok(width <= 390, `pas de défilement horizontal (${width})`);
   ok(A.errors.length === 0 && B.errors.length === 0, 'aucune erreur JavaScript ' + JSON.stringify([...A.errors, ...B.errors].slice(0, 3)));
