@@ -71,7 +71,7 @@ export function Subscriptions(props: { today: string; onOpen: (sub: Subscription
             const charges = chargesFromToday(x, month, props.today).length;
             const cost = charges * shareAmt(can ? me : herKey, x);
             const line = !charges
-              ? `Rien à payer en ${monthName(month)}`
+              ? x.essai ? `Gratuit jusqu'au ${dateShort(x.anchor, props.today)}` : `Rien à payer en ${monthName(month)}`
               : can && reste !== null
                 ? `Ton reste du mois passerait à ${eur(reste - cost)}`
                 : `Coûterait ${eur(cost)} en ${monthName(month)}`;
@@ -81,6 +81,7 @@ export function Subscriptions(props: { today: string; onOpen: (sub: Subscription
                   <span className="sub-name">
                     <b>{x.name}</b>
                     <span className="badge plain">Envisagé</span>
+                    {x.essai && <span className="badge warn">Essai gratuit</span>}
                     {x.owner === 'commun' && <span className="badge soft">Commun</span>}
                   </span>
                   <span className="li-sub">{line}</span>

@@ -228,8 +228,9 @@ function EnvCard(props: {
             <span className="li-main">
               <span className="li-title">{sub.name}</span>
               <span className="li-sub">
-                Abonnement · {x.charges ? `${eur(x.charges * x.share)} en ${monthName(today.slice(0, 7))}` : `rien à payer en ${monthName(today.slice(0, 7))}`}
+                Abonnement · {x.charges ? `${eur(x.charges * x.share)} en ${monthName(today.slice(0, 7))}` : sub.essai ? `gratuit jusqu'au ${dateShort(sub.anchor, today)}` : `rien à payer en ${monthName(today.slice(0, 7))}`}
                 <span className="badge plain">Envisagé</span>
+                {sub.essai && <span className="badge warn">Essai gratuit</span>}
                 {sub.owner === 'commun' && <span className="badge soft">Commun</span>}
               </span>
             </span>

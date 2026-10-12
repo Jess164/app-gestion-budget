@@ -61,6 +61,8 @@ export interface SimInput {
   anchor: string;
   partA?: number;
   cat: string;
+  /** Essai gratuit : le 1er prélèvement est la fin de l'essai. */
+  essai?: boolean;
 }
 
 export interface SimImpact {

@@ -340,6 +340,14 @@ try {
   t = (await text(A.page)).toLowerCase();
   ok(t.includes('si tu le prends') && t.includes('−11,00') && t.includes('/ 50 €') === false, 'A : impact affiché (−11,00 ce mois-ci)');
   await shot(A.page, '15-et-si');
+  // Avec un essai gratuit : rien ce mois-ci, le coût vient après l'essai.
+  await A.page.getByRole('switch', { name: /Essai gratuit/ }).click();
+  t = (await text(A.page)).toLowerCase();
+  ok(t.includes("fin de l'essai") && t.includes("prix après l'essai") && t.includes('gratuit jusqu'), 'A : essai gratuit dans « Et si je le prenais ? »');
+  await shot(A.page, '15b-et-si-essai');
+  await A.page.getByRole('switch', { name: /Essai gratuit/ }).click();
+  await A.page.fill('#s-start', today);
+  ok((await text(A.page)).toLowerCase().includes('−11,00'), 'A : sans essai, de nouveau −11,00 ce mois-ci');
   await A.page.getByRole('button', { name: 'Garder en envisagé' }).click();
   t = (await text(A.page)).toLowerCase();
   ok(t.includes('envisagés') && t.includes('deezer') && t.includes('avec ce que tu envisages'), 'A : Deezer dans les envisagés');

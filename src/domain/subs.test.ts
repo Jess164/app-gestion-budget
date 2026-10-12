@@ -188,4 +188,13 @@ describe('prévisions', () => {
     expect(later.cat).toBeNull();
     expect(later.monthlyAfter - later.monthlyBefore).toBeCloseTo(5, 6);
   });
+
+  it('ne compte rien ce mois-ci pendant un essai gratuit, mais montre le coût après l\'essai', () => {
+    const trial = simImpact(base(), 'a', '2026-10-11', { owner: 'a', amount: 9.99, freq: 'mois', anchor: '2026-11-11', cat: catId('a', 'abonnements'), essai: true });
+    expect(trial.delta).toBe(0);
+    expect(trial.cat!.after).toBe(trial.cat!.before);
+    expect(trial.monthlyAfter - trial.monthlyBefore).toBeCloseTo(9.99, 6);
+    const endsThisMonth = simImpact(base(), 'a', '2026-10-11', { owner: 'a', amount: 9.99, freq: 'mois', anchor: '2026-10-25', cat: catId('a', 'abonnements'), essai: true });
+    expect(endsThisMonth.delta).toBe(9.99);
+  });
 });

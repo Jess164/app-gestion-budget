@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { catState, categoriesOf, myShare, partAFrom } from '../domain/budget';
 import { catId } from '../domain/defaults';
-import { monthName } from '../domain/dates';
+import { addMonths, dateShort, monthName } from '../domain/dates';
 import { simImpact, type SimInput } from '../domain/forecast';
 import { eur, eurShort, evalExpr, numToInput, parseAmount } from '../domain/money';
 import { FREQ } from '../domain/subs';
@@ -9,7 +9,7 @@ import { other, type Freq, type Owner, type Snapshot, type SubscriptionRec, type
 import { newId } from '../data/ids';
 import { useStore } from '../data/store';
 import { IconArrow, IconCheck, IconWarn } from '../ui/icons';
-import { PayerAndPart, Seg, SelectBox, Sheet, SubHead, toast } from '../ui/kit';
+import { PayerAndPart, Seg, SelectBox, Sheet, SubHead, SwitchRow, toast } from '../ui/kit';
 
 type Kind = 'perso' | 'commun';
 const FREQS: Array<[Freq, string]> = (Object.keys(FREQ) as Freq[]).map((f) => [f, FREQ[f].short]);
@@ -39,6 +39,7 @@ export function SimForm(props: { existing?: SubscriptionRec; today: string; onDo
   const [share, setShare] = useState(myShare(me, ex?.partA ?? 0.5));
   const [cat, setCat] = useState(ex?.cat ?? defaultCat('perso'));
   const [start, setStart] = useState(ex?.anchor ?? props.today);
+  const [essai, setEssai] = useState(ex?.essai ?? false);
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -50,6 +51,12 @@ export function SimForm(props: { existing?: SubscriptionRec; today: string; onDo
   const amt = Number.isFinite(value) && value > 0 ? value : null;
   const eq = amt ? `Soit ${eur(amt * FREQ[freq].perMonth)}/mois et ${eur(amt * FREQ[freq].perMonth * 12)}/an` : '';
 
+  function changeEssai(on: boolean) {
+    setEssai(on);
+    // Un essai qui finirait aujourd'hui n'a pas de sens : on propose un mois d'essai, à corriger si besoin.
+    if (on && (!start || start <= props.today)) setStart(addMonths(props.today, 1));
+  }
+
   function changeKind(k: Kind) {
     setKind(k);
     setCat(defaultCat(k));
@@ -58,7 +65,7 @@ export function SimForm(props: { existing?: SubscriptionRec; today: string; onDo
   function save(keep: boolean) {
     const a = parseAmount(amount);
     if (a === null) return setError('Entre un montant, par exemple 12,00.');
-    if (!start) return setError('Choisis la date du premier prélèvement.');
+    if (!start) return setError(essai ? "Choisis la date de fin de l'essai." : 'Choisis la date du premier prélèvement.');
     const now = Date.now();
     const rec: SubscriptionRec = {
       id: ex?.id ?? newId('abo'),
@@ -69,7 +76,7 @@ export function SimForm(props: { existing?: SubscriptionRec; today: string; onDo
       freq,
       anchor: start,
       preavis: ex?.preavis ?? 0,
-      essai: false,
+      essai,
       cat,
       alerte: ex?.alerte ?? true,
       alerteJours: ex?.alerteJours ?? s.prefs.alerteJours,
@@ -98,7 +105,7 @@ export function SimForm(props: { existing?: SubscriptionRec; today: string; onDo
   }
 
   const sim: SimInput | null = amt
-    ? { owner, amount: amt, freq, anchor: start || props.today, partA: isC ? partAFrom(me, share) : undefined, cat }
+    ? { owner, amount: amt, freq, anchor: start || props.today, partA: isC ? partAFrom(me, share) : undefined, cat, essai }
     : null;
 
   return (
@@ -114,8 +121,9 @@ export function SimForm(props: { existing?: SubscriptionRec; today: string; onDo
           <label className="flabel" htmlFor="s-name">Nom</label>
           <input id="s-name" className="input" placeholder="Spotify, salle de sport…" autoComplete="off" value={name} disabled={ro} onChange={(e) => setName(e.target.value)} />
         </div>
+        <SwitchRow title="Essai gratuit" desc="La fin de l'essai devient le premier prélèvement" on={essai} onChange={changeEssai} disabled={ro} />
         <div className="field">
-          <label className="flabel" htmlFor="s-amount">Montant</label>
+          <label className="flabel" htmlFor="s-amount">{essai ? "Prix après l'essai" : 'Montant'}</label>
           <input id="s-amount" className="input" inputMode="decimal" placeholder="0,00" autoComplete="off" value={amount} disabled={ro} onChange={(e) => { setAmount(e.target.value); setError(''); }} />
         </div>
         <div className="field">
@@ -138,7 +146,7 @@ export function SimForm(props: { existing?: SubscriptionRec; today: string; onDo
             <SelectBox id="s-cat" value={cat} options={options} onChange={setCat} disabled={ro} />
           </div>
           <div className="field">
-            <label className="flabel" htmlFor="s-start">1er prélèvement</label>
+            <label className="flabel" htmlFor="s-start">{essai ? "Fin de l'essai" : '1er prélèvement'}</label>
             <input id="s-start" className="input" type="date" value={start} disabled={ro} onChange={(e) => setStart(e.target.value)} />
           </div>
         </div>
@@ -191,7 +199,11 @@ function Impact({ s, member, today, sim, ro }: { s: Snapshot; member: MemberKey;
             <span className={'after' + (imp.resteBefore - imp.delta < 0 ? ' t-over' : '')}>{eur(imp.resteBefore - imp.delta)}</span>
           </div>
           <span className="muted sm">
-            {imp.delta > 0 ? `−${eur(imp.delta)} en ${month}${isC ? ` (${ta} part)` : ''}` : `Premier prélèvement après ${month} : ce mois-ci ne change pas.`}
+            {imp.delta > 0
+              ? `${sim.essai ? `Fin de l'essai le ${dateShort(sim.anchor, today)} : ` : ''}−${eur(imp.delta)} en ${month}${isC ? ` (${ta} part)` : ''}`
+              : sim.essai
+                ? `Gratuit jusqu'au ${dateShort(sim.anchor, today)} : ce mois-ci ne change pas.`
+                : `Premier prélèvement après ${month} : ce mois-ci ne change pas.`}
           </span>
         </div>
       )}
@@ -203,7 +215,9 @@ function Impact({ s, member, today, sim, ro }: { s: Snapshot; member: MemberKey;
           <span className="after">{eur(imp.monthlyAfter)}</span>
           <span className="per">/mois</span>
         </div>
-        <span className="muted sm">Soit {eur(imp.monthlyAfter * 12)} par an au lieu de {eur(imp.monthlyBefore * 12)}</span>
+        <span className="muted sm">
+          {sim.essai ? `Après l'essai (à partir du ${dateShort(sim.anchor, today)}), soit ` : 'Soit '}{eur(imp.monthlyAfter * 12)} par an au lieu de {eur(imp.monthlyBefore * 12)}
+        </span>
       </div>
       {isC && (
         <div className="imp">
