@@ -1,4 +1,9 @@
-import { useEffect, useLayoutEffect, useState, type ReactElement } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactElement } from 'react';
+import { App as NativeApp } from '@capacitor/app';
+import { SystemBars, SystemBarsStyle } from '@capacitor/core';
+import { askOnce, rescheduleAlerts } from './native/alerts';
+import { isNative } from './native/platform';
+import { checkApkUpdate, type RemoteVersion } from './native/update';
 import { todayISO } from './domain/dates';
 import type { ExpenseRec, MemberKey, SubscriptionRec } from './domain/types';
 import { parseInvite } from './data/invite';
@@ -51,9 +56,40 @@ function useTheme(store: Store, systemDark: boolean) {
     const root = document.documentElement;
     if (store.mode === 'auto') root.removeAttribute('data-theme');
     else root.setAttribute('data-theme', store.mode);
-    const bg = getComputedStyle(root).getPropertyValue('--bg').trim();
+    const css = getComputedStyle(root);
+    const bg = css.getPropertyValue('--bg').trim();
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', bg || '#E9DFFF');
+    if (isNative()) {
+      // Icônes de la barre d'état claires sur fond sombre, et inversement.
+      const dark = css.getPropertyValue('--is-dark').trim() === '1';
+      void SystemBars.setStyle({ style: dark ? SystemBarsStyle.Dark : SystemBarsStyle.Light }).catch(() => undefined);
+    }
   }, [store.mode, systemDark]);
+}
+
+/** Dans l'APK : demande la permission une fois, puis reprogramme les alertes à chaque changement des données. */
+function useNativeAlerts(store: Store, today: string) {
+  const version = store.getVersion();
+  const configured = !!store.config;
+  useEffect(() => {
+    if (isNative() && configured) void askOnce().then(() => rescheduleAlerts(store.snapshot(), store.config!.me, today));
+  }, [configured]);
+  useEffect(() => {
+    if (!isNative() || !store.config) return;
+    const t = setTimeout(() => {
+      if (store.config) void rescheduleAlerts(store.snapshot(), store.config.me, today);
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [version, today]);
+}
+
+/** Dans l'APK : une nouvelle version publiée ? */
+function useApkUpdate(): RemoteVersion | null {
+  const [v, setV] = useState<RemoteVersion | null>(null);
+  useEffect(() => {
+    void checkApkUpdate().then(setV);
+  }, []);
+  return v;
 }
 
 /** Synchronise à l'ouverture, au retour sur l'appli, toutes les 3 minutes tant qu'elle est à l'écran, et au retour du réseau. */
@@ -100,6 +136,24 @@ export function App() {
   const configured = !!store.config;
   const [refreshDay] = useState(() => () => setToday(todayISO()));
   useAutoSync(store, configured, refreshDay);
+  useNativeAlerts(store, today);
+  const apkUpdate = useApkUpdate();
+
+  // Bouton retour d'Android : ferme l'écran ouvert, puis revient au Budget, puis quitte l'appli.
+  const nav = useRef({ sub, tab });
+  nav.current = { sub, tab };
+  useEffect(() => {
+    if (!isNative()) return;
+    const handle = NativeApp.addListener('backButton', () => {
+      const { sub: open, tab: current } = nav.current;
+      if (open) setSub(null);
+      else if (current !== 'budget') setTab('budget');
+      else void NativeApp.exitApp();
+    });
+    return () => {
+      void handle.then((h) => h.remove());
+    };
+  }, []);
 
   useEffect(() => {
     if (initialInvite && store.config) toast('Ce téléphone est déjà relié à vos données.');
@@ -141,7 +195,9 @@ export function App() {
           <SubscriptionForm existing={sub.existing} initialKind={sub.kind} today={today} onDone={() => setSub(null)} />
         )}
         {sub.name === 'sim' && <SimForm existing={sub.existing} today={today} onDone={() => setSub(null)} />}
-        {sub.name === 'settings' && <Settings systemDark={systemDark} onBack={() => setSub(null)} onInvite={() => setSub({ name: 'invite' })} />}
+        {sub.name === 'settings' && (
+          <Settings systemDark={systemDark} today={today} apkUpdate={apkUpdate} onBack={() => setSub(null)} onInvite={() => setSub({ name: 'invite' })} />
+        )}
         {sub.name === 'invite' && <Invite fresh={sub.fresh} onBack={() => setSub(null)} />}
       </div>
     );
@@ -165,6 +221,7 @@ export function App() {
           onEdit={(e) => setSub({ name: 'expense', existing: e })}
           onSim={(x) => setSub({ name: 'sim', existing: x })}
           onSettings={() => setSub({ name: 'settings' })}
+          apkUpdate={apkUpdate}
         />
       )}
       {tab === 'commun' && (

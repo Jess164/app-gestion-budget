@@ -3,6 +3,7 @@ import { balanceFor, balanceBOwesA, categoryRows, settlementFor } from './budget
 import { catId, defaultRecords } from './defaults';
 import { autoExpenseId, deadline, dueAutoExpenses, dueDates, monthlyTotal, nextDue, occurrence, prevus } from './subs';
 import { envisaged, simImpact } from './forecast';
+import { plannedAlerts } from './alerts';
 import { snapshotOf } from './testkit';
 import type { ExpenseRec, SettlementRec, SubscriptionRec } from './types';
 
@@ -196,5 +197,44 @@ describe('prévisions', () => {
     expect(trial.monthlyAfter - trial.monthlyBefore).toBeCloseTo(9.99, 6);
     const endsThisMonth = simImpact(base(), 'a', '2026-10-11', { owner: 'a', amount: 9.99, freq: 'mois', anchor: '2026-10-25', cat: catId('a', 'abonnements'), essai: true });
     expect(endsThisMonth.delta).toBe(9.99);
+  });
+});
+
+describe('alertes', () => {
+  const s = () => snapshotOf([
+    ...defaultRecords('Jess', 'Léa', 'd', 1),
+    sub({ id: 'netflix', anchor: '2026-10-20', alerteJours: 3 }),
+    sub({ id: 'salle', anchor: '2027-01-01', freq: 'an', preavis: 31, alerteJours: 3, amount: 24.9 }),
+    sub({ id: 'mobile', anchor: '2026-10-18', alerte: false }),
+    sub({ id: 'medit', anchor: '2026-10-25', essai: true, alerte: false, alerteJours: 2, amount: 6.99 }),
+    sub({ id: 'commun', owner: 'commun', anchor: '2026-11-02', partA: 0.5, payer: 'b' }),
+    sub({ id: 'lea', owner: 'b', anchor: '2026-10-22' }),
+    sub({ id: 'stop', anchor: '2026-10-22', resilieLe: '2026-10-10' })
+  ]);
+
+  it('prévient le nombre de jours choisi avant la date limite, pour les siens et les communs', () => {
+    const list = plannedAlerts(s(), 'a', '2026-10-12', 1);
+    expect(list.map((a) => [a.subId, a.day, a.deadline])).toEqual([
+      ['netflix', '2026-10-17', '2026-10-20'],
+      ['medit', '2026-10-23', '2026-10-25'],
+      ['commun', '2026-10-30', '2026-11-02'],
+      ['salle', '2026-11-28', '2026-12-01']
+    ]);
+    expect(list.find((a) => a.subId === 'medit')!.title).toContain("Fin de l'essai");
+    expect(list.find((a) => a.subId === 'salle')!.body).toContain('1 déc.');
+  });
+
+  it('prévoit plusieurs échéances, sans alerte forcée après la fin de l\'essai', () => {
+    const list = plannedAlerts(s(), 'a', '2026-10-12');
+    expect(list.filter((a) => a.subId === 'netflix').map((a) => a.due)).toEqual(['2026-10-20', '2026-11-20', '2026-12-20']);
+    expect(list.filter((a) => a.subId === 'medit').map((a) => a.due)).toEqual(['2026-10-25']);
+    expect(new Set(list.map((a) => a.id)).size).toBe(list.length);
+    expect(list.every((a) => Number.isInteger(a.id) && a.id > 0 && a.id <= 0x7fffffff)).toBe(true);
+  });
+
+  it('garde une alerte dont le jour est passé tant que la date limite ne l\'est pas', () => {
+    const list = plannedAlerts(s(), 'a', '2026-10-19', 1);
+    expect(list.find((a) => a.subId === 'netflix')).toMatchObject({ day: '2026-10-17', deadline: '2026-10-20' });
+    expect(plannedAlerts(s(), 'a', '2026-10-21', 1).find((a) => a.due === '2026-10-20')).toBeUndefined();
   });
 });

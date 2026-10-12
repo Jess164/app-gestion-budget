@@ -17,6 +17,11 @@ concurrency:
 jobs:
   construire:
     runs-on: ubuntu-latest
+    env:
+      # Adresse du site, pour les liens d'invitation envoyés depuis l'APK et sa mise à jour.
+      VITE_SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+      VITE_BUILD: ${{ github.run_number }}
+      BUILD_NUMBER: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,6 +31,33 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+
+      # L'APK Android (alertes de résiliation). S'il ne se fabrique pas, le site est quand même publié.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - name: Fabriquer l'APK
+        id: apk
+        continue-on-error: true
+        run: |
+          npx cap sync android
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee ../apk-build.log
+      - name: Joindre l'APK au site
+        run: |
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          if [ "${{ steps.apk.outcome }}" = success ] && [ -f "$APK" ]; then
+            cp "$APK" dist/pasdtal.apk
+            echo "{\"build\": $BUILD_NUMBER, \"apk\": true}" > dist/version.json
+          else
+            echo "{\"build\": $BUILD_NUMBER, \"apk\": false}" > dist/version.json
+            tail -n 200 apk-build.log > dist/apk-build.txt || true
+          fi
+          ls -la dist | head -20
+
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

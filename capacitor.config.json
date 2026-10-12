@@ -1,0 +1,17 @@
+{
+  "appId": "fr.pasdtal.budget",
+  "appName": "PasD'Tal'",
+  "webDir": "dist",
+  "android": {
+    "backgroundColor": "#E9DFFF"
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_pasdtal",
+      "iconColor": "#9B7BF2"
+    },
+    "SystemBars": {
+      "insetsHandling": "css"
+    }
+  }
+}

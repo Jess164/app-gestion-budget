@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">PasD\'Tal\'</string>
+    <string name="title_activity_main">PasD\'Tal\'</string>
+    <string name="package_name">fr.pasdtal.budget</string>
+    <string name="custom_url_scheme">fr.pasdtal.budget</string>
+</resources>

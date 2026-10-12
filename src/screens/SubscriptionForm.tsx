@@ -9,6 +9,7 @@ import { newId } from '../data/ids';
 import { useStore } from '../data/store';
 import { PayerAndPart, Seg, SelectBox, Sheet, SubHead, SwitchRow, toast } from '../ui/kit';
 import { isIOS } from './Setup';
+import { isNative } from '../native/platform';
 
 type Kind = 'perso' | 'commun';
 const FREQS: Array<[Freq, string]> = (Object.keys(FREQ) as Freq[]).map((f) => [f, FREQ[f].short]);
@@ -83,7 +84,9 @@ export function SubscriptionForm(props: { existing?: SubscriptionRec; initialKin
     if (!next) return '';
     const at = addDays(next, -pre - alerteJours);
     if (at < props.today) return "La date de l'alerte est déjà passée pour cette échéance.";
-    return `Notification le ${dateShort(at, props.today)} sur ton Android, une fois l'APK installé.`;
+    return isNative()
+      ? `Notification le ${dateShort(at, props.today)} à 9 h sur ce téléphone.`
+      : `Notification le ${dateShort(at, props.today)} à 9 h sur ton Android, avec l'APK.`;
   }
 
   function save() {

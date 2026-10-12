@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { categoriesOf, categoryInUse } from '../domain/budget';
 import { PALETTE } from '../domain/defaults';
 import { numToInput, parseAmount } from '../domain/money';
@@ -9,6 +9,10 @@ import { IconPlus } from '../ui/icons';
 import { Seg, Sheet, SubHead, toast } from '../ui/kit';
 import { SyncLine } from './Budget';
 import { isIOS } from './Setup';
+import { dateShort } from '../domain/dates';
+import { askPermission, permission, testNotification, upcoming, type Permission } from '../native/alerts';
+import { BUILD, isAndroidBrowser, isNative } from '../native/platform';
+import { apkUrl, type RemoteVersion } from '../native/update';
 
 /** Champ qui n'enregistre qu'en quittant la saisie, pour ne pas synchroniser à chaque lettre. */
 function CommitInput(props: {
@@ -41,7 +45,7 @@ function CommitInput(props: {
   );
 }
 
-export function Settings(props: { onBack: () => void; onInvite: () => void; systemDark: boolean }) {
+export function Settings(props: { onBack: () => void; onInvite: () => void; systemDark: boolean; today: string; apkUpdate?: RemoteVersion | null }) {
   const store = useStore();
   const s = store.snapshot();
   const me = store.config!.me;
@@ -147,20 +151,7 @@ export function Settings(props: { onBack: () => void; onInvite: () => void; syst
           <button className="btn dashed block" type="button" onClick={() => addCategory('commun')}><IconPlus />Nouvelle catégorie commune</button>
         </section>
 
-        {!isIOS() && (
-          <section className="card">
-            <h2 className="set-title">Alertes</h2>
-            <div className="set-row">
-              <span>Délai d'alerte par défaut</span>
-              <div className="stepper">
-                <button className="icon-btn" type="button" aria-label="Un jour de moins" onClick={() => savePrefs({ alerteJours: Math.max(0, s.prefs.alerteJours - 1) })}>−</button>
-                <output>{s.prefs.alerteJours}&nbsp;j</output>
-                <button className="icon-btn" type="button" aria-label="Un jour de plus" onClick={() => savePrefs({ alerteJours: Math.min(30, s.prefs.alerteJours + 1) })}>+</button>
-              </div>
-            </div>
-            <p className="muted sm">Pour les nouveaux abonnements. Les notifications arriveront avec l'APK Android.</p>
-          </section>
-        )}
+        {!isIOS() && <AlertsCard prefsDays={s.prefs.alerteJours} onDays={(d) => savePrefs({ alerteJours: d })} today={props.today} apkUpdate={props.apkUpdate} />}
 
         <section className="card">
           <h2 className="set-title">Synchro</h2>
@@ -169,7 +160,7 @@ export function Settings(props: { onBack: () => void; onInvite: () => void; syst
           <button className="btn primary block" type="button" onClick={props.onInvite}>Inviter ma sœur</button>
           <button className="link-btn" type="button" onClick={() => setForget(true)}>Déconnecter ce téléphone</button>
         </section>
-        <p className="foot-note">PasD'Tal' · étape 3 · tes données restent dans ton Google Drive.</p>
+        <p className="foot-note">PasD'Tal'{BUILD ? ` · version 1.${BUILD}` : ''}{isNative() ? ' · APK Android' : ''} · tes données restent dans ton Google Drive.</p>
       </main>
 
       {toDelete && (
@@ -201,5 +192,74 @@ export function Settings(props: { onBack: () => void; onInvite: () => void; syst
         </Sheet>
       )}
     </>
+  );
+}
+
+/** Les alertes avant la date limite de résiliation : réglages, et dans l'APK, la permission et les prochaines alertes. */
+function AlertsCard(props: { prefsDays: number; onDays: (d: number) => void; today: string; apkUpdate?: RemoteVersion | null }) {
+  const store = useStore();
+  const [perm, setPerm] = useState<Permission>('unavailable');
+  const native = isNative();
+  useEffect(() => {
+    if (native) void permission().then(setPerm);
+  }, [native]);
+  const next = native && store.config ? upcoming(store.snapshot(), store.config.me, props.today) : [];
+
+  async function allow() {
+    const p = await askPermission();
+    setPerm(p);
+    if (p !== 'granted') toast('Autorise les notifications de PasD\'Tal\' dans les réglages du téléphone');
+  }
+
+  return (
+    <section className="card">
+      <h2 className="set-title">Alertes</h2>
+      {native && perm === 'granted' && <p className="info"><b>Notifications activées</b><span>Tu es prévenue à 9 h, le nombre de jours choisi avant chaque date limite de résiliation.</span></p>}
+      {native && (perm === 'prompt' || perm === 'denied') && (
+        <div className="info is-error">
+          <b>Notifications bloquées</b>
+          <span>{perm === 'denied' ? 'Autorise-les dans les réglages du téléphone : Applications, PasD\'Tal\', Notifications.' : 'Sans elles, tu ne seras pas prévenue.'}</span>
+          <button className="btn sm" type="button" style={{ alignSelf: 'flex-start', marginTop: 6 }} onClick={() => void allow()}>Autoriser les notifications</button>
+        </div>
+      )}
+      {!native && isAndroidBrowser() && (
+        <div className="info">
+          <b>Pour recevoir les alertes, installe l'APK</b>
+          <span>Une fois l'APK téléchargé, ouvre-le et accepte l'installation. Puis, dans l'APK, relie ton téléphone avec un lien d'invitation (bouton « Inviter ma sœur » ici) ou avec le code secret du script.</span>
+          <a className="btn sm primary" href={apkUrl()} style={{ alignSelf: 'flex-start', marginTop: 6, textDecoration: 'none' }}>Télécharger l'APK</a>
+        </div>
+      )}
+      <div className="set-row">
+        <span>Délai d'alerte par défaut</span>
+        <div className="stepper">
+          <button className="icon-btn" type="button" aria-label="Un jour de moins" onClick={() => props.onDays(Math.max(0, props.prefsDays - 1))}>−</button>
+          <output>{props.prefsDays}&nbsp;j</output>
+          <button className="icon-btn" type="button" aria-label="Un jour de plus" onClick={() => props.onDays(Math.min(30, props.prefsDays + 1))}>+</button>
+        </div>
+      </div>
+      <p className="muted sm">Pour les nouveaux abonnements. Tu peux le changer abonnement par abonnement.</p>
+      {native && perm === 'granted' && (
+        <>
+          <h3 className="flabel">Prochaines alertes</h3>
+          {next.length === 0 && <p className="muted sm">Aucune pour l'instant.</p>}
+          <div className="list">
+            {next.map((a) => (
+              <div className="li" key={a.key}>
+                <span className="li-main">
+                  <span className="li-title">{a.title}</span>
+                  <span className="li-sub">Le {dateShort(a.day, props.today)} à 9 h · date limite le {dateShort(a.deadline, props.today)}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+          <button className="btn block" type="button" onClick={async () => toast((await testNotification(props.prefsDays)) ? 'Notification envoyée dans 3 secondes' : 'Notifications bloquées')}>
+            Tester une notification
+          </button>
+        </>
+      )}
+      {native && props.apkUpdate && (
+        <a className="btn primary block" href={apkUrl()} style={{ textDecoration: 'none' }}>Télécharger la nouvelle version (1.{props.apkUpdate.build})</a>
+      )}
+    </section>
   );
 }

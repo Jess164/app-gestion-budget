@@ -4,6 +4,7 @@ import { eur, eurShort } from '../domain/money';
 import { prevus, FREQ } from '../domain/subs';
 import { envisaged, type Envisaged } from '../domain/forecast';
 import type { SubscriptionRec } from '../domain/types';
+import { apkUrl, type RemoteVersion } from '../native/update';
 import { other, type ExpenseRec, type MemberKey, type Snapshot } from '../domain/types';
 import { useStore, type Store } from '../data/store';
 import { IconCheck, IconCloud, IconCloudOff, IconDown, IconGear, IconLeft, IconRefresh, IconRight, IconX } from '../ui/icons';
@@ -39,6 +40,7 @@ export function Budget(props: {
   onEdit: (e: ExpenseRec) => void;
   onSim: (sub: SubscriptionRec) => void;
   onSettings: () => void;
+  apkUpdate?: RemoteVersion | null;
 }) {
   const store = useStore();
   const s = store.snapshot();
@@ -70,6 +72,12 @@ export function Budget(props: {
         </div>
       </div>
       <SyncLine store={store} />
+      {props.apkUpdate && (
+        <a className="update-card" href={apkUrl()}>
+          <span>Nouvelle version de l'appli</span>
+          <span className="btn sm primary">Télécharger</span>
+        </a>
+      )}
       {ro && <p className="pill-note">Budget de {s.members[who].name} · lecture seule</p>}
       <ResteCard sum={sum} planned={plannedTotal} poss={ro ? 'sa' : 'ta'} env={env?.thisMonth ?? 0} ro={ro} />
       {env && env.items.length > 0 && (

@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { other } from '../domain/types';
 import { inviteLink } from '../data/invite';
+import { publicBase } from '../native/platform';
 import { useStore } from '../data/store';
 import { IconCopy } from '../ui/icons';
 import { SubHead, copyText, toast } from '../ui/kit';
@@ -9,7 +10,7 @@ export function Invite({ fresh, onBack }: { fresh?: boolean; onBack: () => void 
   const store = useStore();
   const cfg = store.config!;
   const her = store.snapshot().members[other(cfg.me)];
-  const link = inviteLink(window.location.href, { url: cfg.url, code: cfg.code, who: other(cfg.me) });
+  const link = inviteLink(publicBase(), { url: cfg.url, code: cfg.code, who: other(cfg.me) });
   const area = useRef<HTMLTextAreaElement>(null);
 
   return (

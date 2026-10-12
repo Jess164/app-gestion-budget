@@ -6,7 +6,7 @@ Le budget de deux sœurs : les dépenses de chacune, leurs dépenses communes et
 - Un petit script Google, collé une seule fois dans cette feuille, synchronise vos deux téléphones.
 - L'appli est une appli web installable, hébergée gratuitement sur GitHub Pages : https://coders64.github.io/app-gestion-budget/
 
-**Où en est l'appli** : étape 3 sur 4. Elle a le budget de chacune, les dépenses, les paramètres, la calculatrice et la synchro (étape 1), le commun, le solde, « On est quittes » et les abonnements (étape 2), et les prévisions : « Et si je le prenais ? » et les achats envisagés (étape 3). Reste l'APK Android avec les alertes.
+**Où en est l'appli** : les 4 étapes sont faites. Le budget de chacune, les dépenses, les paramètres, la calculatrice et la synchro (étape 1) ; le commun, le solde, « On est quittes » et les abonnements (étape 2) ; les prévisions, « Et si je le prenais ? » et les achats envisagés (étape 3) ; l'APK Android avec les alertes avant la date limite de résiliation (étape 4).
 
 ## Installer le script Google (une seule fois, environ 5 minutes)
 
@@ -53,6 +53,18 @@ npm run e2e      # parcours complet sur deux téléphones simulés (Playwright)
 - [`docs/adr`](docs/adr) : les décisions importantes et leurs raisons.
 
 À chaque envoi sur la branche `main`, GitHub lance les tests et publie l'appli sur GitHub Pages (`.github/workflows/publier.yml`).
+
+## L'APK Android (alertes)
+
+GitHub fabrique l'APK à chaque publication et le dépose sur le site : https://coders64.github.io/app-gestion-budget/pasdtal.apk
+
+1. Sur le téléphone Android, ouvre ce lien (ou, dans l'appli web, Paramètres puis « Télécharger l'APK »).
+2. Ouvre le fichier téléchargé. La première fois, Android demande d'autoriser le navigateur à installer des applis : accepte.
+3. Ouvre PasD'Tal' et autorise les notifications.
+4. Relie le téléphone : « C'est moi qui ai installé le script Google », l'adresse du script, puis son code secret. Ou bien colle un lien d'invitation copié depuis l'appli web.
+5. Dans Paramètres, « Tester une notification » vérifie que tout marche.
+
+Quand une nouvelle version est publiée, l'APK affiche « Nouvelle version de l'appli » : touche « Télécharger », puis installe-la par-dessus. Tes réglages sont gardés.
 
 ## Si l'adresse de l'appli change
 
