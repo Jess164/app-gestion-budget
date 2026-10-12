@@ -30,7 +30,9 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
         globIgnores: ['**/*cyrillic*', '**/*vietnamese*'],
-        navigateFallback: 'index.html'
+        navigateFallback: 'index.html',
+        // Les fichiers à télécharger ou à lire tels quels ne doivent pas être remplacés par la page de l'appli.
+        navigateFallbackDenylist: [/\.(apk|json|txt)$/i]
       }
     })
   ],

@@ -226,7 +226,7 @@ function AlertsCard(props: { prefsDays: number; onDays: (d: number) => void; tod
         <div className="info">
           <b>Pour recevoir les alertes, installe l'APK</b>
           <span>Une fois l'APK téléchargé, ouvre-le et accepte l'installation. Puis, dans l'APK, relie ton téléphone avec un lien d'invitation (bouton « Inviter ma sœur » ici) ou avec le code secret du script.</span>
-          <a className="btn sm primary" href={apkUrl()} style={{ alignSelf: 'flex-start', marginTop: 6, textDecoration: 'none' }}>Télécharger l'APK</a>
+          <a className="btn sm primary" href={apkUrl()} download="pasdtal.apk" style={{ alignSelf: 'flex-start', marginTop: 6, textDecoration: 'none' }}>Télécharger l'APK</a>
         </div>
       )}
       <div className="set-row">
