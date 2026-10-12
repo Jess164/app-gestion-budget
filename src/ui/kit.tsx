@@ -1,5 +1,5 @@
-import { useEffect, useRef, type ReactNode } from 'react';
-import { eur, r2 } from '../domain/money';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { evalExpr, r2 } from '../domain/money';
 import { IconBack, IconDown } from './icons';
 
 export function Seg<T extends string>(props: {
@@ -122,19 +122,57 @@ export function SelectBox(props: { id: string; value: string; options: Array<{ i
 
 /**
  * Qui a payé et la part de chacune, pour une dépense ou un abonnement commun.
- * part : la part de la membre qui utilise ce téléphone, en %.
+ * share : la part de la membre qui utilise ce téléphone, entre 0 et 1.
+ * La part se règle au curseur (par 5 %) ou en tapant un montant dans l'une des deux cases.
  */
 export function PayerAndPart(props: {
   herName: string;
   payerIsMe: boolean;
   onPayer: (me: boolean) => void;
-  part: number;
-  onPart: (p: number) => void;
+  share: number;
+  onShare: (share: number) => void;
   amount: number | null;
   disabled?: boolean;
 }) {
+  const [editing, setEditing] = useState<'me' | 'her' | null>(null);
+  const [draft, setDraft] = useState('');
   const amt = props.amount && props.amount > 0 ? props.amount : 0;
-  const mine = r2((amt * props.part) / 100);
+  const mine = r2(amt * props.share);
+  const hers = r2(amt - mine);
+  const pct = props.share * 100;
+  const pctText = (p: number) => (Math.abs(p - Math.round(p)) < 0.05 ? `${Math.round(p)}` : `≈ ${Math.round(p)}`);
+  const money = (v: number) => r2(v).toFixed(2).replace('.', ',');
+
+  function type(who: 'me' | 'her', text: string) {
+    setDraft(text);
+    const v = evalExpr(text);
+    if (!amt || !Number.isFinite(v)) return;
+    const x = Math.min(amt, Math.max(0, v));
+    props.onShare(who === 'me' ? x / amt : (amt - x) / amt);
+  }
+
+  const box = (who: 'me' | 'her', label: string, p: number, value: number) => (
+    <div>
+      <label className="muted sm" htmlFor={`part-${who}`}>{label} · {pctText(p)}&nbsp;%</label>
+      <span className="part-amt">
+        <input
+          id={`part-${who}`}
+          className="input"
+          inputMode="decimal"
+          autoComplete="off"
+          placeholder="—"
+          disabled={props.disabled || !amt}
+          value={editing === who ? draft : amt ? money(value) : ''}
+          onFocus={(e) => { setEditing(who); setDraft(amt ? money(value) : ''); e.target.select(); }}
+          onChange={(e) => type(who, e.target.value)}
+          onBlur={() => setEditing(null)}
+          onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+        />
+        <b aria-hidden="true">€</b>
+      </span>
+    </div>
+  );
+
   return (
     <>
       <div className="field">
@@ -145,12 +183,22 @@ export function PayerAndPart(props: {
         </div>
       </div>
       <div className="field">
-        <label className="flabel" htmlFor="f-part">Ta part : <b>{props.part}&nbsp;%</b></label>
-        <input id="f-part" type="range" min={0} max={100} step={5} value={props.part} disabled={props.disabled} onChange={(e) => props.onPart(Number(e.target.value))} />
+        <label className="flabel" htmlFor="f-part">Ta part : <b>{pctText(pct)}&nbsp;%</b></label>
+        <input
+          id="f-part"
+          type="range"
+          min={0}
+          max={100}
+          step={5}
+          value={Math.round(pct / 5) * 5}
+          disabled={props.disabled}
+          onChange={(e) => props.onShare(Number(e.target.value) / 100)}
+        />
         <div className="part-tiles">
-          <div><span className="muted sm">Toi · {props.part}&nbsp;%</span><b>{eur(mine)}</b></div>
-          <div><span className="muted sm">{props.herName} · {100 - props.part}&nbsp;%</span><b>{eur(r2(amt - mine))}</b></div>
+          {box('me', 'Toi', pct, mine)}
+          {box('her', props.herName, 100 - pct, hers)}
         </div>
+        {!props.disabled && <span className="muted sm">{amt ? 'Touche un montant pour écrire la part toi-même.' : 'Entre d\'abord le montant total.'}</span>}
       </div>
     </>
   );

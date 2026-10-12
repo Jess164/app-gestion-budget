@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { categoriesOf, myPartPct, partAFrom } from '../domain/budget';
+import { categoriesOf, myShare, partAFrom } from '../domain/budget';
 import { dateLong } from '../domain/dates';
 import { eur, evalExpr, hasOp, numToInput, parseAmount } from '../domain/money';
 import { other, type ExpenseRec } from '../domain/types';
@@ -30,7 +30,7 @@ export function ExpenseForm(props: {
   const [date, setDate] = useState(ex?.date ?? props.today);
   const [cat, setCat] = useState(ex?.cat ?? cats[0]?.id ?? '');
   const [payerIsMe, setPayerIsMe] = useState(ex?.payer ? ex.payer === me : true);
-  const [part, setPart] = useState(myPartPct(me, ex?.partA ?? 0.5));
+  const [share, setShare] = useState(myShare(me, ex?.partA ?? 0.5));
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const amountRef = useRef<HTMLInputElement>(null);
@@ -75,7 +75,7 @@ export function ExpenseForm(props: {
     };
     if (isC) {
       rec.payer = payerIsMe ? me : other(me);
-      rec.partA = partAFrom(me, part);
+      rec.partA = partAFrom(me, share);
     }
     if (ex?.subId) rec.subId = ex.subId;
     store.put<ExpenseRec>(rec);
@@ -146,8 +146,8 @@ export function ExpenseForm(props: {
             herName={her.name}
             payerIsMe={payerIsMe}
             onPayer={setPayerIsMe}
-            part={part}
-            onPart={setPart}
+            share={share}
+            onShare={setShare}
             amount={Number.isFinite(value) ? value : null}
           />
         )}

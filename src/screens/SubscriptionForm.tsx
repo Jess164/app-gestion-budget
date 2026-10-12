@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { categoriesOf, myPartPct, partAFrom } from '../domain/budget';
+import { categoriesOf, myShare, partAFrom } from '../domain/budget';
 import { catId } from '../domain/defaults';
 import { addDays, addMonths, dateLong, dateShort, daysBetween, inDays } from '../domain/dates';
 import { eur, evalExpr, numToInput, parseAmount } from '../domain/money';
@@ -45,7 +45,7 @@ export function SubscriptionForm(props: { existing?: SubscriptionRec; initialKin
   const [preavis, setPreavis] = useState(String(ex?.preavis ?? 0));
   const [kind, setKind] = useState<Kind>(ex ? (ex.owner === 'commun' ? 'commun' : 'perso') : props.initialKind ?? 'perso');
   const [payerIsMe, setPayerIsMe] = useState(ex?.payer ? ex.payer === me : true);
-  const [part, setPart] = useState(myPartPct(me, ex?.partA ?? 0.5));
+  const [share, setShare] = useState(myShare(me, ex?.partA ?? 0.5));
   const [cat, setCat] = useState(ex?.cat ?? defaultCat(kind));
   const [alerte, setAlerte] = useState(ex?.alerte ?? true);
   const [alerteJours, setAlerteJours] = useState(ex?.alerteJours ?? s.prefs.alerteJours);
@@ -112,7 +112,7 @@ export function SubscriptionForm(props: { existing?: SubscriptionRec; initialKin
     };
     if (isC) {
       rec.payer = payerIsMe ? me : herKey;
-      rec.partA = partAFrom(me, part);
+      rec.partA = partAFrom(me, share);
     }
     store.put<SubscriptionRec>(rec);
     store.materialize(props.today);
@@ -189,8 +189,8 @@ export function SubscriptionForm(props: { existing?: SubscriptionRec; initialKin
             herName={her}
             payerIsMe={payerIsMe}
             onPayer={setPayerIsMe}
-            part={part}
-            onPart={setPart}
+            share={share}
+            onShare={setShare}
             amount={Number.isFinite(value) ? value : null}
             disabled={ro}
           />

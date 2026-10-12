@@ -216,7 +216,7 @@ try {
   await A.page.fill('#f-amount', '40');
   await A.page.fill('#f-label', 'Courses du week-end');
   t = (await text(A.page)).toLowerCase();
-  ok(t.includes('payé par') && t.includes('20,00'), 'A : part de 50 % affichée (20,00 chacune)');
+  ok(t.includes('payé par') && (await A.page.locator('#part-me').inputValue()) === '20,00' && (await A.page.locator('#part-her').inputValue()) === '20,00', 'A : part de 50 % affichée (20,00 chacune)');
   await A.page.getByRole('button', { name: 'Ajouter la dépense' }).click();
   t = (await text(A.page)).toLowerCase();
   ok(t.includes('léa te doit') && t.includes('20,00'), 'A : Léa te doit 20,00');
@@ -225,11 +225,23 @@ try {
   await A.page.fill('#f-label', 'Cadeau maman');
   await A.page.getByRole('button', { name: 'Léa', exact: true }).click();
   await A.page.locator('#f-part').fill('70');
-  ok((await text(A.page)).toLowerCase().includes('21,00'), 'A : part réglée à 70 % (21,00)');
+  ok((await A.page.locator('#part-me').inputValue()) === '21,00', 'A : part réglée à 70 % (21,00)');
   await A.page.getByRole('button', { name: 'Ajouter la dépense' }).click();
   // Léa doit 20 ; Jess doit 21 sur le cadeau payé par Léa : Jess doit 1,00.
   t = (await text(A.page)).toLowerCase();
   ok(t.includes('tu dois à léa') && t.includes('1,00'), 'A : tu dois 1,00 à Léa');
+
+  // Part tapée à la main : 40 € sur 63 €, Léa paie le reste.
+  await A.page.getByRole('button', { name: 'Dépense commune' }).click();
+  await A.page.fill('#f-amount', '63');
+  await A.page.locator('#part-me').fill('40');
+  t = (await text(A.page)).toLowerCase();
+  ok((await A.page.locator('#part-her').inputValue()) === '23,00' && t.includes('≈ 63'), 'A : part tapée à la main (40 € → Léa 23 €, ≈ 63 %)');
+  await A.page.locator('#part-her').fill('30');
+  await A.page.locator('#f-label').click();
+  ok((await A.page.locator('#part-me').inputValue()) === '33,00', 'A : part de Léa tapée → la tienne suit (33 €)');
+  await shot(A.page, '09b-part-a-la-main');
+  await A.page.getByRole('button', { name: 'Retour' }).click();
 
   // Abonnement commun prélevé aujourd'hui, payé par Léa : la dépense s'ajoute toute seule.
   await A.page.getByRole('button', { name: 'Abonnements', exact: true }).click();

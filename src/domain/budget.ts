@@ -9,10 +9,10 @@ export function shareAmt(member: MemberKey, e: Pick<ExpenseRec, 'owner' | 'amoun
   return member === 'a' ? a : r2(e.amount - a);
 }
 
-/** La part, en %, de la membre qui utilise ce téléphone, d'après la part de « a » enregistrée. */
-export const myPartPct = (me: MemberKey, partA = 0.5) => Math.round((me === 'a' ? partA : 1 - partA) * 100);
-/** L'inverse : la part de « a » (entre 0 et 1) d'après la part, en %, de la membre de ce téléphone. */
-export const partAFrom = (me: MemberKey, pct: number) => (me === 'a' ? pct / 100 : (100 - pct) / 100);
+/** La part (entre 0 et 1) de la membre qui utilise ce téléphone, d'après la part de « a » enregistrée. */
+export const myShare = (me: MemberKey, partA = 0.5) => (me === 'a' ? partA : 1 - partA);
+/** L'inverse : la part de « a » d'après la part de la membre de ce téléphone. */
+export const partAFrom = (me: MemberKey, share: number) => (me === 'a' ? share : 1 - share);
 
 export function categoriesOf(s: Snapshot, owner: Owner): CategoryRec[] {
   return s.categories.filter((c) => c.owner === owner).sort((x, y) => x.order - y.order || x.name.localeCompare(y.name));
