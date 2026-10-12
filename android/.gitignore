@@ -99,3 +99,7 @@ app/src/main/assets/public
 app/src/main/assets/capacitor.config.json
 app/src/main/assets/capacitor.plugins.json
 app/src/main/res/xml/config.xml
+
+# Clé de signature de l APK : elle vient du secret GitHub ANDROID_KEYSTORE, jamais du dépôt.
+app/pasdtal.keystore
+app/signing.properties

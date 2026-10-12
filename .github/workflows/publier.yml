@@ -41,7 +41,16 @@ jobs:
       - name: Fabriquer l'APK
         id: apk
         continue-on-error: true
+        env:
+          # Clé de signature, toujours la même pour installer les mises à jour par-dessus. Rangée dans les secrets du dépôt.
+          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
         run: |
+          if [ -z "$ANDROID_KEYSTORE" ]; then
+            echo "Il manque le secret ANDROID_KEYSTORE : l'APK n'est pas fabriqué." | tee apk-build.log
+            exit 1
+          fi
+          printf "%s" "$ANDROID_KEYSTORE" | tr -d " \r\n" | base64 -d > android/app/pasdtal.keystore
+          printf 'storeFile=pasdtal.keystore\nstorePassword=pasdtal\nkeyAlias=pasdtal\nkeyPassword=pasdtal\n' > android/app/signing.properties
           npx cap sync android
           cd android
           chmod +x gradlew
