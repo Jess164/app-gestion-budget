@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import type { MemberKey, Snapshot } from '../domain/types';
 import { isScriptUrl, parseInvite, type Invite } from '../data/invite';
-import { ScriptError, useStore } from '../data/store';
+import { ScriptError, pingScript, useStore } from '../data/store';
 import { IconCopy } from '../ui/icons';
 import { Seg, SubHead, copyText, toast } from '../ui/kit';
 
@@ -24,6 +24,9 @@ export function Setup({ initialInvite, onDone }: { initialInvite: string; onDone
   const [who, setWho] = useState<MemberKey>('b');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  /** Le script est déjà configuré : on propose de relier ce téléphone avec son code secret. */
+  const [relink, setRelink] = useState(false);
+  const [code, setCode] = useState('');
   const area = useRef<HTMLTextAreaElement>(null);
   const iosBrowser = isIOS() && !isStandalone();
 
@@ -33,11 +36,34 @@ export function Setup({ initialInvite, onDone }: { initialInvite: string; onDone
     if (!isScriptUrl(u)) {
       return setError("Cette adresse ne ressemble pas à celle d'un script Google. Elle commence par https://script.google.com/macros/s/ et finit par /exec.");
     }
-    if (!nameA.trim() || !nameB.trim()) return setError('Entre vos deux prénoms.');
     setBusy(true);
     try {
+      // Script déjà configuré : pas besoin des prénoms, on passe au code secret.
+      if ((await pingScript(u)).initialized) return setRelink(true);
+      if (!nameA.trim() || !nameB.trim()) return setError('Entre vos deux prénoms.');
       await store.setupNew(u, nameA.trim(), nameB.trim());
       onDone(true);
+    } catch (e) {
+      if (e instanceof ScriptError && e.code === 'already_initialized') setRelink(true);
+      else setError(e instanceof ScriptError ? e.message : 'Une erreur inattendue est survenue. Réessaie.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Relier le téléphone de la membre « a » à son script déjà configuré (nouvelle adresse de l'appli, nouveau téléphone…). */
+  async function relinkWithCode() {
+    setError('');
+    const u = url.trim();
+    const c = code.trim();
+    if (c.length < 20) return setError('Ce code est trop court. Copie toute la valeur de CODE.');
+    setBusy(true);
+    try {
+      const inv: Invite = { url: u, code: c, who: 'a' };
+      const s = await store.fetchForJoin(inv);
+      store.finishJoin(inv, 'a');
+      toast(`Te revoilà ${s.members.a.name} !`);
+      onDone(false);
     } catch (e) {
       setError(e instanceof ScriptError ? e.message : 'Une erreur inattendue est survenue. Réessaie.');
     } finally {
@@ -88,6 +114,35 @@ export function Setup({ initialInvite, onDone }: { initialInvite: string; onDone
     );
   }
 
+  if (step === 'new' && relink) {
+    return (
+      <>
+        <SubHead title="Relier ton script" onBack={() => { setRelink(false); setError(''); }} />
+        <main className="screen sub" style={{ paddingTop: 8 }}>
+          <div className="info">
+            <b>Ce script est déjà configuré</b>
+            <span>
+              Si c'est ton script (par exemple parce que l'adresse de l'appli a changé), relie ce téléphone avec son code secret.
+              Tes données sont dans ton Google Sheet : tu les retrouves telles quelles.
+            </span>
+          </div>
+          <ol className="steps">
+            <li>Ouvre ton script dans Apps Script (depuis ton Google Sheet : Extensions, puis Apps Script).</li>
+            <li>Touche la roue dentée « Paramètres du projet », à gauche.</li>
+            <li>Tout en bas, dans « Propriétés du script », copie la valeur à côté de CODE.</li>
+          </ol>
+          <div className="field">
+            <label className="flabel" htmlFor="s-code">Code secret</label>
+            <input id="s-code" className="input" autoComplete="off" autoCapitalize="off" spellCheck={false} value={code} onChange={(e) => setCode(e.target.value)} />
+          </div>
+          <p className="muted sm">Si c'est le script de ta sœur, demande-lui plutôt un lien d'invitation.</p>
+          {error && <p className="info is-error" role="alert">{error}</p>}
+          <button className="btn primary block" type="button" disabled={busy || !code.trim()} onClick={relinkWithCode}>{busy ? 'Connexion…' : 'Relier avec ce code'}</button>
+        </main>
+      </>
+    );
+  }
+
   if (step === 'new') {
     return (
       <>
@@ -96,7 +151,7 @@ export function Setup({ initialInvite, onDone }: { initialInvite: string; onDone
           <div className="field">
             <label className="flabel" htmlFor="s-url">Adresse du script Google</label>
             <input id="s-url" className="input" inputMode="url" autoComplete="off" placeholder="https://script.google.com/macros/s/…/exec" value={url} onChange={(e) => setUrl(e.target.value)} />
-            <span className="muted sm">Tu la trouves après « Déployer », dans « Application Web ».</span>
+            <span className="muted sm">Tu la trouves après « Déployer », dans « Application Web ». Si ton script est déjà configuré, l'appli te demandera son code secret à la place des prénoms.</span>
           </div>
           <div className="grid2">
             <div className="field">

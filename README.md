@@ -4,7 +4,7 @@ Le budget de deux sœurs : les dépenses de chacune, leurs dépenses communes et
 
 - Les données restent sur vos téléphones et dans une feuille Google Sheets de ton Google Drive. Il n'y a pas de base de données.
 - Un petit script Google, collé une seule fois dans cette feuille, synchronise vos deux téléphones.
-- L'appli est une appli web installable, hébergée gratuitement sur GitHub Pages.
+- L'appli est une appli web installable, hébergée gratuitement sur GitHub Pages : https://coders64.github.io/app-gestion-budget/
 
 **Où en est l'appli** : étape 3 sur 4. Elle a le budget de chacune, les dépenses, les paramètres, la calculatrice et la synchro (étape 1), le commun, le solde, « On est quittes » et les abonnements (étape 2), et les prévisions : « Et si je le prenais ? » et les achats envisagés (étape 3). Reste l'APK Android avec les alertes.
 
@@ -53,3 +53,10 @@ npm run e2e      # parcours complet sur deux téléphones simulés (Playwright)
 - [`docs/adr`](docs/adr) : les décisions importantes et leurs raisons.
 
 À chaque envoi sur la branche `main`, GitHub lance les tests et publie l'appli sur GitHub Pages (`.github/workflows/publier.yml`).
+
+## Si l'adresse de l'appli change
+
+L'adresse dépend du nom d'utilisateur GitHub. Si elle change, les téléphones repartent de zéro à la nouvelle adresse, mais les données restent dans le Google Sheet.
+
+- **Toi (qui as installé le script)** : ouvre la nouvelle adresse, « C'est moi qui ai installé le script Google », colle l'adresse du script. L'appli voit qu'il est déjà configuré et te demande son code secret : dans Apps Script, roue dentée « Paramètres du projet », valeur de CODE dans « Propriétés du script ». Si l'ancienne appli s'ouvre encore, tu peux aussi copier un lien d'invitation depuis ses Paramètres.
+- **Ta sœur** : elle installe l'appli depuis la nouvelle adresse, puis colle un nouveau lien d'invitation envoyé depuis ton appli.

@@ -368,9 +368,30 @@ try {
   ok((await A.page.locator('.li', { hasText: 'Baskets' }).count()) === 1, 'A : Baskets achetées, dans les dernières dépenses');
   ok((await reste()) !== resteAvant, 'A : le reste du mois tient compte des achats faits');
 
+  // --- Nouvelle adresse de l'appli : Jess relie un téléphone vierge avec le code secret du script ---
+  const C = await phone(browser);
+  await C.page.goto(BASE);
+  await C.page.getByText("C'est moi qui ai installé le script Google").click();
+  await C.page.fill('#s-url', SCRIPT_URL);
+  await C.page.getByRole('button', { name: 'Relier mon téléphone' }).click();
+  await C.page.getByText('Ce script est déjà configuré').waitFor({ timeout: 5000 }).catch(() => {});
+  t = (await text(C.page)).toLowerCase();
+  ok(t.includes('ce script est déjà configuré') && t.includes('code secret'), 'C : script déjà configuré, on demande le code secret');
+  await C.page.fill('#s-code', 'mauvais-code-mauvais-code-123');
+  await C.page.getByRole('button', { name: 'Relier avec ce code' }).click();
+  await C.page.getByText(/ne correspond plus/).waitFor({ timeout: 5000 }).catch(() => {});
+  ok((await text(C.page)).includes('ne correspond plus'), 'C : mauvais code refusé');
+  const secret = await A.page.evaluate(() => JSON.parse(localStorage.getItem('pasdtal-config')).code);
+  await C.page.fill('#s-code', secret);
+  await C.page.getByRole('button', { name: 'Relier avec ce code' }).click();
+  await C.page.getByRole('button', { name: 'Paramètres' }).waitFor();
+  t = (await text(C.page)).toLowerCase();
+  ok(t.includes('toi') && t.includes('léa') && t.includes('baskets'), 'C : relié comme Jess, retrouve ses dépenses');
+  await shot(C.page, '16-relier-avec-code');
+
   const width = await A.page.evaluate(() => document.documentElement.scrollWidth);
   ok(width <= 390, `pas de défilement horizontal (${width})`);
-  ok(A.errors.length === 0 && B.errors.length === 0, 'aucune erreur JavaScript ' + JSON.stringify([...A.errors, ...B.errors].slice(0, 3)));
+  ok(A.errors.length === 0 && B.errors.length === 0 && C.errors.length === 0, 'aucune erreur JavaScript ' + JSON.stringify([...A.errors, ...B.errors, ...C.errors].slice(0, 3)));
 } finally {
   await browser.close();
 }
