@@ -53,6 +53,8 @@ export interface ExpenseRec extends BaseRecord {
   partA?: number;
   /** Dépense ajoutée toute seule par un abonnement : l'identifiant de cet abonnement. */
   subId?: string;
+  /** Achat envisagé, pas encore fait : il ne compte dans aucun vrai chiffre. La date est le jour prévu. */
+  envisage?: boolean;
   createdAt: number;
 }
 
@@ -80,6 +82,8 @@ export interface SubscriptionRec extends BaseRecord {
   alerteJours: number;
   /** Jour où l'abonnement a été résilié, ou null s'il court toujours. */
   resilieLe: string | null;
+  /** Abonnement envisagé (« Et si je le prenais ? ») : il ne crée ni dépense ni alerte. L'échéance est le 1er prélèvement prévu. */
+  envisage?: boolean;
   createdAt: number;
 }
 
@@ -100,9 +104,15 @@ export interface Snapshot {
   members: Record<MemberKey, MemberRec>;
   prefs: PrefsRec;
   categories: CategoryRec[];
+  /** Les vraies dépenses (sans les achats envisagés). */
   expenses: ExpenseRec[];
+  /** Les vrais abonnements, résiliés compris (sans les envisagés). */
   subscriptions: SubscriptionRec[];
   settlements: SettlementRec[];
+  /** Achats envisagés. */
+  envExpenses: ExpenseRec[];
+  /** Abonnements envisagés. */
+  envSubs: SubscriptionRec[];
 }
 
 export const other = (m: MemberKey): MemberKey => (m === 'a' ? 'b' : 'a');

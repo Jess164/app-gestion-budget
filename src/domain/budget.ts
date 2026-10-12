@@ -102,7 +102,7 @@ export function firstMonth(s: Snapshot, fallback: string): string {
 }
 
 export function categoryInUse(s: Snapshot, catId: string): boolean {
-  return s.expenses.some((e) => e.cat === catId) || s.subscriptions.some((x) => x.cat === catId);
+  return [...s.expenses, ...s.envExpenses, ...s.subscriptions, ...s.envSubs].some((x) => x.cat === catId);
 }
 
 /**

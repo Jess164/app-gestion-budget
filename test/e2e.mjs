@@ -317,6 +317,49 @@ try {
   t = (await text(A.page)).toLowerCase();
   ok(t.includes('résiliés') && t.includes('plus de dépense'), 'A : Spotify rangé dans les résiliés');
 
+  // --- Prévisions : achat et abonnement envisagés ---
+  const reste = async () => (await A.page.locator('.note .big-hand').innerText()).trim();
+  await A.page.getByRole('button', { name: 'Budget', exact: true }).click();
+  const resteAvant = await reste();
+  await A.page.getByRole('button', { name: 'Dépense', exact: true }).click();
+  await A.page.fill('#f-amount', '60');
+  await A.page.fill('#f-label', 'Baskets');
+  await A.page.getByRole('switch', { name: /Pas encore acheté/ }).click();
+  await A.page.getByRole('button', { name: /Shopping/ }).click();
+  ok((await text(A.page)).includes('Prévu pour'), 'A : la date devient « Prévu pour »');
+  await A.page.getByRole('button', { name: 'Garder en envisagé' }).click();
+  t = (await text(A.page)).toLowerCase();
+  ok(t.includes('ce que tu envisages') && t.includes('baskets') && t.includes('avec ce que tu envisages'), 'A : Baskets dans « Ce que tu envisages »');
+  ok((await reste()) === resteAvant, `A : le vrai reste du mois ne bouge pas (${resteAvant})`);
+  await shot(A.page, '14-envisage-budget');
+
+  await A.page.getByRole('button', { name: 'Abonnements', exact: true }).click();
+  await A.page.getByRole('button', { name: 'Et si je prenais un abonnement ?' }).click();
+  await A.page.fill('#s-name', 'Deezer');
+  await A.page.fill('#s-amount', '11');
+  t = (await text(A.page)).toLowerCase();
+  ok(t.includes('si tu le prends') && t.includes('−11,00') && t.includes('/ 50 €') === false, 'A : impact affiché (−11,00 ce mois-ci)');
+  await shot(A.page, '15-et-si');
+  await A.page.getByRole('button', { name: 'Garder en envisagé' }).click();
+  t = (await text(A.page)).toLowerCase();
+  ok(t.includes('envisagés') && t.includes('deezer') && t.includes('avec ce que tu envisages'), 'A : Deezer dans les envisagés');
+  ok(!t.includes('résilier avant le') || !(await A.page.locator('.sub-card', { hasText: 'Deezer' }).count()), 'A : Deezer pas dans les vrais abonnements');
+  await sync(A);
+
+  await sync(B);
+  await B.page.getByRole('button', { name: 'Jess', exact: true }).click();
+  t = (await text(B.page)).toLowerCase();
+  ok(t.includes('deezer') && (await B.page.getByRole('button', { name: 'Je le prends' }).count()) === 0, 'B : voit Deezer envisagé par Jess, sans pouvoir le prendre');
+
+  await A.page.getByRole('button', { name: 'Budget', exact: true }).click();
+  await A.page.locator('.env-item', { hasText: 'Deezer' }).getByRole('button', { name: 'Je le prends' }).click();
+  await A.page.locator('.env-item', { hasText: 'Baskets' }).getByRole('button', { name: "Je l'achète" }).click();
+  t = (await text(A.page)).toLowerCase();
+  ok(!t.includes('ce que tu envisages'), 'A : plus rien d\'envisagé');
+  ok((await A.page.locator('.li', { hasText: 'Deezer' }).filter({ hasText: 'ajoutée toute seule' }).count()) === 1, 'A : Deezer pris, sa dépense du jour ajoutée toute seule');
+  ok((await A.page.locator('.li', { hasText: 'Baskets' }).count()) === 1, 'A : Baskets achetées, dans les dernières dépenses');
+  ok((await reste()) !== resteAvant, 'A : le reste du mois tient compte des achats faits');
+
   const width = await A.page.evaluate(() => document.documentElement.scrollWidth);
   ok(width <= 390, `pas de défilement horizontal (${width})`);
   ok(A.errors.length === 0 && B.errors.length === 0, 'aucune erreur JavaScript ' + JSON.stringify([...A.errors, ...B.errors].slice(0, 3)));

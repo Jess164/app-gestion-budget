@@ -10,6 +10,7 @@ import { ExpenseForm, type ExpenseKind } from './screens/ExpenseForm';
 import { Invite } from './screens/Invite';
 import { Settings } from './screens/Settings';
 import { Setup } from './screens/Setup';
+import { SimForm } from './screens/SimForm';
 import { SubscriptionForm } from './screens/SubscriptionForm';
 import { Subscriptions } from './screens/Subscriptions';
 import { IconCal, IconCalc, IconChart, IconPeople, IconPlus } from './ui/icons';
@@ -19,6 +20,7 @@ type Tab = 'budget' | 'commun' | 'abos' | 'calc';
 type Sub =
   | { name: 'expense'; existing?: ExpenseRec; amount?: string; kind?: ExpenseKind }
   | { name: 'subscription'; existing?: SubscriptionRec; kind?: ExpenseKind }
+  | { name: 'sim'; existing?: SubscriptionRec }
   | { name: 'settings' }
   | { name: 'invite'; fresh?: boolean };
 
@@ -138,6 +140,7 @@ export function App() {
         {sub.name === 'subscription' && (
           <SubscriptionForm existing={sub.existing} initialKind={sub.kind} today={today} onDone={() => setSub(null)} />
         )}
+        {sub.name === 'sim' && <SimForm existing={sub.existing} today={today} onDone={() => setSub(null)} />}
         {sub.name === 'settings' && <Settings systemDark={systemDark} onBack={() => setSub(null)} onInvite={() => setSub({ name: 'invite' })} />}
         {sub.name === 'invite' && <Invite fresh={sub.fresh} onBack={() => setSub(null)} />}
       </div>
@@ -160,6 +163,7 @@ export function App() {
           setViewing={setViewing}
           today={today}
           onEdit={(e) => setSub({ name: 'expense', existing: e })}
+          onSim={(x) => setSub({ name: 'sim', existing: x })}
           onSettings={() => setSub({ name: 'settings' })}
         />
       )}
@@ -172,7 +176,13 @@ export function App() {
           onOpenSub={(x) => setSub({ name: 'subscription', existing: x })}
         />
       )}
-      {tab === 'abos' && <Subscriptions today={today} onOpen={(x) => setSub({ name: 'subscription', existing: x })} />}
+      {tab === 'abos' && (
+        <Subscriptions
+          today={today}
+          onOpen={(x) => setSub({ name: 'subscription', existing: x })}
+          onSim={(x) => setSub({ name: 'sim', existing: x })}
+        />
+      )}
       {tab === 'calc' && <Calculator onAddExpense={(amount) => setSub({ name: 'expense', amount })} />}
       {fab && (
         <button className="fab" type="button" onClick={() => setSub(fab.open())}>

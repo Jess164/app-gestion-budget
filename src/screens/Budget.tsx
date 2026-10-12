@@ -1,11 +1,13 @@
 import { categoryRows, findCategory, firstMonth, monthSummary, recentExpenses, shareAmt, type CategoryRow, type MonthSummary } from '../domain/budget';
-import { dateShort, monthLabel, shiftMonth, timeShort } from '../domain/dates';
+import { dateShort, monthLabel, monthName, shiftMonth, timeShort } from '../domain/dates';
 import { eur, eurShort } from '../domain/money';
-import { prevus } from '../domain/subs';
+import { prevus, FREQ } from '../domain/subs';
+import { envisaged, type Envisaged } from '../domain/forecast';
+import type { SubscriptionRec } from '../domain/types';
 import { other, type ExpenseRec, type MemberKey, type Snapshot } from '../domain/types';
 import { useStore, type Store } from '../data/store';
-import { IconCloud, IconCloudOff, IconGear, IconLeft, IconRefresh, IconRight } from '../ui/icons';
-import { Seg } from '../ui/kit';
+import { IconCheck, IconCloud, IconCloudOff, IconDown, IconGear, IconLeft, IconRefresh, IconRight, IconX } from '../ui/icons';
+import { Seg, toast } from '../ui/kit';
 
 export function SyncLine({ store }: { store: Store }) {
   const s = store.sync;
@@ -35,6 +37,7 @@ export function Budget(props: {
   setViewing: (m: MemberKey) => void;
   today: string;
   onEdit: (e: ExpenseRec) => void;
+  onSim: (sub: SubscriptionRec) => void;
   onSettings: () => void;
 }) {
   const store = useStore();
@@ -49,6 +52,7 @@ export function Budget(props: {
   const plannedTotal = planned.reduce((t, p) => t + p.amount, 0);
   const rows = categoryRows(s, who, props.month, planned.filter((p) => p.sub.owner === who).map((p) => ({ cat: p.sub.cat, amount: p.amount })));
   const recent = recentExpenses(s, who, props.month, 30);
+  const env = props.month === cur ? envisaged(s, who, props.today) : null;
   return (
     <main className="screen">
       <header className="head">
@@ -67,7 +71,10 @@ export function Budget(props: {
       </div>
       <SyncLine store={store} />
       {ro && <p className="pill-note">Budget de {s.members[who].name} · lecture seule</p>}
-      <ResteCard sum={sum} planned={plannedTotal} poss={ro ? 'sa' : 'ta'} />
+      <ResteCard sum={sum} planned={plannedTotal} poss={ro ? 'sa' : 'ta'} env={env?.thisMonth ?? 0} ro={ro} />
+      {env && env.items.length > 0 && (
+        <EnvCard env={env} store={store} me={me} ro={ro} today={props.today} s={s} onEdit={props.onEdit} onSim={props.onSim} />
+      )}
       <CategoryCard rows={rows} seuil={s.prefs.seuil} />
       <section className="card" aria-label="Dernières dépenses">
         <h2>Dernières dépenses</h2>
@@ -82,7 +89,25 @@ export function Budget(props: {
   );
 }
 
-function ResteCard({ sum, planned, poss }: { sum: MonthSummary; planned: number; poss: string }) {
+function EnvLine({ amount, ro }: { amount: number; ro: boolean }) {
+  return (
+    <button
+      type="button"
+      className="env-line"
+      onClick={() => {
+        document.getElementById('envisage')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }}
+    >
+      <span className="switch-text">
+        <span className="muted sm">{ro ? "Avec ce qu'elle envisage" : 'Avec ce que tu envisages'}</span>
+        <b>{eur(amount)}</b>
+      </span>
+      <IconDown />
+    </button>
+  );
+}
+
+function ResteCard({ sum, planned, poss, env, ro }: { sum: MonthSummary; planned: number; poss: string; env: number; ro: boolean }) {
   if (!sum.plafond || sum.reste === null) {
     return (
       <section className="note" aria-label="Dépensé ce mois">
@@ -91,6 +116,7 @@ function ResteCard({ sum, planned, poss }: { sum: MonthSummary; planned: number;
         <div className="big-row"><span className="big-hand">{eur(sum.perso + sum.commun)}</span></div>
         {planned > 0 && <span className="hand-line">et {eur(planned)} prévus d'ici la fin du mois</span>}
         <span className="muted sm">Pas de plafond du mois. Tu peux en fixer un dans Paramètres.</span>
+        {env > 0 && <EnvLine amount={sum.perso + sum.commun + env} ro={ro} />}
       </section>
     );
   }
@@ -117,6 +143,111 @@ function ResteCard({ sum, planned, poss }: { sum: MonthSummary; planned: number;
         {sum.commun > 0 && <span><i style={{ background: 'var(--note-commun)' }} />{eur(sum.commun)} {poss} part du commun</span>}
       </div>
       {planned > 0 && !over && <span className="hand-line">dont {eur(planned)} déjà prévus</span>}
+      {env > 0 && <EnvLine amount={sum.reste - env} ro={ro} />}
+    </section>
+  );
+}
+
+function EnvCard(props: {
+  env: Envisaged;
+  store: Store;
+  me: MemberKey;
+  ro: boolean;
+  today: string;
+  s: Snapshot;
+  onEdit: (e: ExpenseRec) => void;
+  onSim: (sub: SubscriptionRec) => void;
+}) {
+  const { env, store, me, ro, today, s } = props;
+  const editable = (owner: string) => !ro && (owner === me || owner === 'commun');
+
+  function buy(e: ExpenseRec, keepDate: boolean) {
+    const { envisage: _drop, ...rest } = e;
+    store.put<ExpenseRec>({ ...rest, id: e.id, date: keepDate || e.date <= today ? e.date : today, createdAt: Date.now() });
+    toast(`${e.label || 'Achat'} ajouté à tes dépenses`);
+  }
+  function drop(e: ExpenseRec) {
+    store.remove(e.id);
+    toast('Retiré de ce que tu envisages');
+  }
+  function take(sub: SubscriptionRec) {
+    const { envisage: _drop, ...rest } = sub;
+    store.put<SubscriptionRec>({ ...rest, id: sub.id, createdAt: Date.now() });
+    store.materialize(today);
+    toast(`${sub.name} ajouté à tes abonnements`);
+  }
+
+  return (
+    <section id="envisage" className="dash-card" aria-label="Ce que tu envisages">
+      <div className="card-head">
+        <h2>{ro ? "Ce qu'elle envisage" : 'Ce que tu envisages'}</h2>
+        <span className="muted sm">pas encore compté</span>
+      </div>
+      {env.items.map((x) => {
+        if (x.kind === 'achat') {
+          const e = x.item;
+          const c = findCategory(s, e.cat, e.owner);
+          const can = editable(e.owner);
+          const head = (
+            <>
+              <span className="li-main">
+                <span className="li-title">{e.label || c.name}</span>
+                <span className="li-sub">
+                  {c.name} · {x.when === 'passe' ? "c'était prévu pour le" : 'prévu pour le'} {dateShort(e.date, today)}
+                  {e.owner === 'commun' && <span className="badge soft">Commun</span>}
+                </span>
+              </span>
+              <span className="li-amt">{eur(e.amount)}{e.owner === 'commun' && <span className="sm muted">{ro ? 'sa' : 'ta'} part {eur(x.share)}</span>}</span>
+            </>
+          );
+          return (
+            <div className="env-item" key={e.id}>
+              {can ? <button type="button" className="env-head" onClick={() => props.onEdit(e)}>{head}</button> : <div className="env-head">{head}</div>}
+              {can && x.when === 'passe' && (
+                <>
+                  <span className="env-ask">Tu l'as acheté ?</span>
+                  <div className="grid2">
+                    <button className="btn sm" type="button" onClick={() => drop(e)}><IconX />Non, je retire</button>
+                    <button className="btn sm primary" type="button" onClick={() => buy(e, true)}><IconCheck />Oui</button>
+                  </div>
+                </>
+              )}
+              {can && x.when !== 'passe' && (
+                <div className="grid2">
+                  <button className="btn sm" type="button" onClick={() => drop(e)}><IconX />Retirer</button>
+                  <button className="btn sm primary" type="button" onClick={() => buy(e, false)}><IconCheck />Je l'achète</button>
+                </div>
+              )}
+            </div>
+          );
+        }
+        const sub = x.item;
+        const can = editable(sub.owner);
+        const head = (
+          <>
+            <span className="li-main">
+              <span className="li-title">{sub.name}</span>
+              <span className="li-sub">
+                Abonnement · {x.charges ? `${eur(x.charges * x.share)} en ${monthName(today.slice(0, 7))}` : `rien à payer en ${monthName(today.slice(0, 7))}`}
+                <span className="badge plain">Envisagé</span>
+                {sub.owner === 'commun' && <span className="badge soft">Commun</span>}
+              </span>
+            </span>
+            <span className="li-amt">{eur(sub.amount)}<span className="sm muted">{FREQ[sub.freq].per.slice(1)}</span></span>
+          </>
+        );
+        return (
+          <div className="env-item" key={sub.id}>
+            {can ? <button type="button" className="env-head" onClick={() => props.onSim(sub)}>{head}</button> : <div className="env-head">{head}</div>}
+            {can && (
+              <div className="grid2">
+                <button className="btn sm" type="button" onClick={() => props.onSim(sub)}>Voir l'impact</button>
+                <button className="btn sm primary" type="button" onClick={() => take(sub)}><IconCheck />Je le prends</button>
+              </div>
+            )}
+          </div>
+        );
+      })}
     </section>
   );
 }

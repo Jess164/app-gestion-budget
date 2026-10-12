@@ -9,8 +9,10 @@ export function snapshotOf(records: AnyRecord[]): Snapshot {
     members,
     prefs: live.find((r) => r.type === 'prefs') as any,
     categories: live.filter((r) => r.type === 'category') as any,
-    expenses: live.filter((r) => r.type === 'expense') as any,
-    subscriptions: live.filter((r) => r.type === 'subscription') as any,
-    settlements: live.filter((r) => r.type === 'settlement') as any
+    expenses: live.filter((r) => r.type === 'expense' && !r.envisage) as any,
+    subscriptions: live.filter((r) => r.type === 'subscription' && !r.envisage) as any,
+    settlements: live.filter((r) => r.type === 'settlement') as any,
+    envExpenses: live.filter((r) => r.type === 'expense' && r.envisage) as any,
+    envSubs: live.filter((r) => r.type === 'subscription' && r.envisage) as any
   };
 }

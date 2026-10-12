@@ -5,7 +5,7 @@ import { eur, evalExpr, hasOp, numToInput, parseAmount } from '../domain/money';
 import { other, type ExpenseRec } from '../domain/types';
 import { newId } from '../data/ids';
 import { useStore } from '../data/store';
-import { PayerAndPart, Seg, Sheet, SubHead, toast } from '../ui/kit';
+import { PayerAndPart, Seg, Sheet, SubHead, SwitchRow, toast } from '../ui/kit';
 
 const OPS: Array<[string, string]> = [['+', 'Plus'], ['−', 'Moins'], ['×', 'Multiplier'], ['÷', 'Diviser']];
 
@@ -31,6 +31,7 @@ export function ExpenseForm(props: {
   const [cat, setCat] = useState(ex?.cat ?? cats[0]?.id ?? '');
   const [payerIsMe, setPayerIsMe] = useState(ex?.payer ? ex.payer === me : true);
   const [share, setShare] = useState(myShare(me, ex?.partA ?? 0.5));
+  const [envisage, setEnvisage] = useState(ex?.envisage ?? false);
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const amountRef = useRef<HTMLInputElement>(null);
@@ -78,19 +79,29 @@ export function ExpenseForm(props: {
       rec.partA = partAFrom(me, share);
     }
     if (ex?.subId) rec.subId = ex.subId;
+    if (envisage) rec.envisage = true;
+    else if (ex?.envisage) rec.createdAt = now;
     store.put<ExpenseRec>(rec);
-    toast(ex ? 'Dépense modifiée' : `${isC ? 'Dépense commune ajoutée' : 'Dépense ajoutée'} : ${eur(amount)}`);
+    toast(
+      envisage
+        ? `Gardé en envisagé : ${eur(amount)}`
+        : ex?.envisage
+          ? `${rec.label || 'Achat'} ajouté à tes dépenses`
+          : ex
+            ? 'Dépense modifiée'
+            : `${isC ? 'Dépense commune ajoutée' : 'Dépense ajoutée'} : ${eur(amount)}`
+    );
     props.onDone(date.slice(0, 7), kind);
   }
 
   function remove() {
     if (!ex) return;
     store.remove(ex.id);
-    toast('Dépense supprimée');
+    toast(ex.envisage ? 'Retiré de ce que tu envisages' : 'Dépense supprimée');
     props.onDone(undefined, kind);
   }
 
-  const title = ex ? 'Modifier la dépense' : isC ? 'Dépense commune' : 'Nouvelle dépense';
+  const title = ex?.envisage ? 'Achat envisagé' : ex ? 'Modifier la dépense' : isC ? 'Dépense commune' : 'Nouvelle dépense';
   return (
     <>
       <SubHead title={title} onBack={() => props.onDone(undefined, kind)} />
@@ -127,10 +138,18 @@ export function ExpenseForm(props: {
             <input id="f-label" className="input" placeholder="Facultatif" autoComplete="off" value={label} onChange={(e) => setLabel(e.target.value)} />
           </div>
           <div className="field">
-            <label className="flabel" htmlFor="f-date">Date</label>
+            <label className="flabel" htmlFor="f-date">{envisage ? 'Prévu pour' : 'Date'}</label>
             <input id="f-date" className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
         </div>
+        {!ex?.subId && (
+          <SwitchRow
+            title="Pas encore acheté"
+            desc="Tu l'envisages : il s'affiche en pointillés dans le budget, sans compter dans tes vrais chiffres"
+            on={envisage}
+            onChange={setEnvisage}
+          />
+        )}
         <div className="field">
           <span className="flabel" id="f-cat">Catégorie</span>
           <div className="chips" role="group" aria-labelledby="f-cat">
@@ -152,12 +171,18 @@ export function ExpenseForm(props: {
           />
         )}
         {error && <p className="form-error" role="alert">{error}</p>}
-        <button className="btn primary block" type="button" onClick={save}>{ex ? 'Enregistrer' : 'Ajouter la dépense'}</button>
-        {ex && <button className="link-btn" type="button" onClick={() => setConfirmDelete(true)}>Supprimer cette dépense</button>}
+        <button className="btn primary block" type="button" onClick={save}>
+          {envisage ? (ex?.envisage ? 'Enregistrer' : 'Garder en envisagé') : ex?.envisage ? "Je l'achète" : ex ? 'Enregistrer' : 'Ajouter la dépense'}
+        </button>
+        {ex && (
+          <button className="link-btn" type="button" onClick={() => setConfirmDelete(true)}>
+            {ex.envisage ? 'Retirer de ce que tu envisages' : 'Supprimer cette dépense'}
+          </button>
+        )}
       </main>
       {confirmDelete && ex && (
         <Sheet
-          title="Supprimer la dépense ?"
+          title={ex.envisage ? 'Retirer cet achat ?' : 'Supprimer la dépense ?'}
           onClose={() => setConfirmDelete(false)}
           actions={<button className="btn block danger" type="button" onClick={remove}>Supprimer</button>}
         >

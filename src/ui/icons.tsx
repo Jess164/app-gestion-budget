@@ -48,3 +48,8 @@ export const IconWarn = () => (
   <Svg size={18} sw={2}><path d="M12 9v4" /><path d="M12 17h.01" /><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /></Svg>
 );
 export const IconDown = () => <Svg size={18} sw={2.2}><path d="M6 9l6 6 6-6" /></Svg>;
+export const IconBulb = () => (
+  <Svg size={20} sw={2}><path d="M9 18h6" /><path d="M10 22h4" /><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.3h6c0-1 .4-1.8 1-2.3A7 7 0 0 0 12 2z" /></Svg>
+);
+export const IconX = () => <Svg size={18} sw={2.4}><path d="M18 6L6 18M6 6l12 12" /></Svg>;
+export const IconArrow = () => <Svg size={20} sw={2}><path d="M5 12h14" /><path d="M13 6l6 6-6 6" /></Svg>;

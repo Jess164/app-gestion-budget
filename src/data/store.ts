@@ -154,15 +154,17 @@ export class Store {
     const expenses: ExpenseRec[] = [];
     const subscriptions: SubscriptionRec[] = [];
     const settlements: SettlementRec[] = [];
+    const envExpenses: ExpenseRec[] = [];
+    const envSubs: SubscriptionRec[] = [];
     for (const r of live) {
       if (r.type === 'member') members[r.key] = r;
       else if (r.type === 'prefs') prefs = r;
       else if (r.type === 'category') categories.push(r);
-      else if (r.type === 'expense') expenses.push(r);
-      else if (r.type === 'subscription') subscriptions.push(r);
+      else if (r.type === 'expense') (r.envisage ? envExpenses : expenses).push(r);
+      else if (r.type === 'subscription') (r.envisage ? envSubs : subscriptions).push(r);
       else if (r.type === 'settlement') settlements.push(r);
     }
-    this.snap = { members, prefs, categories, expenses, subscriptions, settlements };
+    this.snap = { members, prefs, categories, expenses, subscriptions, settlements, envExpenses, envSubs };
     return this.snap;
   }
 

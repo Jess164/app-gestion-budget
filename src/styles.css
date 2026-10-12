@@ -188,6 +188,27 @@ input[type="range"] { width: 100%; height: 36px; accent-color: var(--accent-stro
 .part-amt .input { height: 44px; padding: 0 10px; font-size: 18px; font-weight: 700; min-width: 0; }
 .part-amt .input:disabled { opacity: .6; }
 
+/* Prévisions : l'envisagé, en pointillés */
+.dash-card { background: var(--card); border: 2.5px dashed var(--dash); border-radius: 18px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; scroll-margin-top: 12px; }
+.dash-card h2 { font-size: 19px; font-weight: 700; }
+.env-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 52px; padding: 8px 12px; border: 2px dashed var(--dash); border-radius: 10px; text-align: left; }
+.env-line b { font-size: 19px; }
+.env-item { display: flex; flex-direction: column; gap: 10px; padding: 10px 0; border-top: 1.5px dashed var(--dash); }
+.env-item:first-of-type { border-top: 0; }
+.env-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; min-height: 44px; }
+.env-ask { font-weight: 700; color: var(--warn-ink); background: var(--warn-soft); border: 2px solid var(--line); border-radius: 10px; padding: 6px 10px; font-size: 14px; }
+.imp { display: flex; flex-direction: column; gap: 6px; padding: 12px 0; border-top: 1.5px dashed var(--dash); }
+.imp:first-of-type { border-top: 0; padding-top: 0; }
+.ba { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ba .before { font-size: 18px; color: var(--muted); }
+.ba .after { font-family: var(--f-hand); font-size: 36px; font-weight: 700; line-height: 1; }
+.t-over { color: var(--over-text); }
+.mbar { position: relative; height: 16px; border: 2px solid var(--line); border-radius: 999px; background: var(--track); overflow: hidden; }
+.mbar i { position: absolute; top: 0; bottom: 0; left: 0; display: block; }
+.mbar .m-after { background-color: var(--fill); opacity: .45; }
+.mbar .m-before { background: var(--c); }
+.mbar .m-cap { width: 3px; left: auto; background: var(--ink); }
+
 /* Abonnements */
 .sub-card { display: flex; flex-direction: column; gap: 10px; width: 100%; padding: 14px 16px; text-align: left; background: var(--card); border: 2.5px solid var(--line); border-radius: 16px; box-shadow: 4px 4px 0 var(--shadow); }
 .sub-card.is-resilie { box-shadow: none; border-style: dashed; opacity: .8; }

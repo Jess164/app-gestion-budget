@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { balanceFor, balanceBOwesA, categoryRows, settlementFor } from './budget';
 import { catId, defaultRecords } from './defaults';
 import { autoExpenseId, deadline, dueAutoExpenses, dueDates, monthlyTotal, nextDue, occurrence, prevus } from './subs';
+import { envisaged, simImpact } from './forecast';
 import { snapshotOf } from './testkit';
 import type { ExpenseRec, SettlementRec, SubscriptionRec } from './types';
 
@@ -137,5 +138,54 @@ describe('solde du commun', () => {
     expect(balanceFor(snapshotOf([...before, r]), 'a')).toBe(0);
     expect(settlementFor(snapshotOf([...before, r]), 'a')).toBeNull();
     expect(balanceFor(snapshotOf([...before, r, exp({ amount: 10, payer: 'b' })]), 'a')).toBe(-5);
+  });
+});
+
+describe('prévisions', () => {
+  const base = () => {
+    const recs = defaultRecords('Jess', 'Léa', 'd', 1);
+    const s = snapshotOf([
+      ...recs,
+      sub({ id: 'box', amount: 29.99, anchor: '2026-10-05' }),
+      sub({ id: 'spotify', amount: 12, anchor: '2026-10-11', envisage: true }),
+      sub({ id: 'disney', owner: 'commun', amount: 10, anchor: '2026-11-02', envisage: true, partA: 0.5, payer: 'b' }),
+      exp({ id: 'box-oct', owner: 'a', amount: 29.99, cat: catId('a', 'abonnements'), date: '2026-10-05' }),
+      exp({ id: 'baskets', owner: 'a', amount: 60, cat: catId('a', 'shopping'), date: '2026-10-20', envisage: true }),
+      exp({ id: 'velo', owner: 'a', amount: 200, cat: catId('a', 'loisirs'), date: '2026-09-15', envisage: true }),
+      exp({ id: 'lea', owner: 'b', amount: 30, cat: catId('b', 'shopping'), date: '2026-10-20', envisage: true })
+    ]);
+    s.members.a.plafond = 600;
+    s.categories.find((c) => c.id === catId('a', 'abonnements'))!.plafond = 50;
+    return s;
+  };
+
+  it('garde les envisagés hors des vrais chiffres', () => {
+    const s = base();
+    expect(s.expenses.map((e) => e.id)).toEqual(['box-oct']);
+    expect(s.subscriptions.map((x) => x.id)).toEqual(['box']);
+    expect(dueAutoExpenses(s.subscriptions, '2026-12-31').every((e) => e.subId === 'box')).toBe(true);
+  });
+
+  it('liste ce que tu envisages, l\'achat du mois passé en premier', () => {
+    const env = envisaged(base(), 'a', '2026-10-11');
+    expect(env.items.map((x) => x.item.id)).toEqual(['velo', 'baskets', 'spotify', 'disney']);
+    expect(env.items[0]).toMatchObject({ kind: 'achat', when: 'passe' });
+    // Baskets 60 + Spotify 12 aujourd'hui ; Disney commence en novembre.
+    expect(env.thisMonth).toBeCloseTo(72, 6);
+    expect(env.monthly).toBeCloseTo(12 + 5, 6);
+    expect(envisaged(base(), 'b', '2026-10-11').items.map((x) => x.item.id)).toEqual(['lea', 'disney']);
+  });
+
+  it('montre l\'impact d\'un abonnement : reste, coût par mois, catégorie', () => {
+    const imp = simImpact(base(), 'a', '2026-10-11', { owner: 'a', amount: 12, freq: 'mois', anchor: '2026-10-11', cat: catId('a', 'abonnements') });
+    expect(imp.delta).toBe(12);
+    expect(imp.resteBefore).toBeCloseTo(600 - 29.99, 6);
+    expect(imp.monthlyAfter - imp.monthlyBefore).toBeCloseTo(12, 6);
+    expect(imp.cat).toMatchObject({ before: 29.99, plafond: 50 });
+    expect(imp.cat!.after).toBeCloseTo(41.99, 6);
+    const later = simImpact(base(), 'a', '2026-10-11', { owner: 'commun', amount: 10, freq: 'mois', anchor: '2026-11-02', partA: 0.5, cat: catId('commun', 'abos') });
+    expect(later.delta).toBe(0);
+    expect(later.cat).toBeNull();
+    expect(later.monthlyAfter - later.monthlyBefore).toBeCloseTo(5, 6);
   });
 });

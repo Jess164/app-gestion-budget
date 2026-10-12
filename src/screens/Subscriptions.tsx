@@ -1,17 +1,19 @@
 import { useState } from 'react';
 import { shareAmt } from '../domain/budget';
-import { dateShort, daysBetween, inDays } from '../domain/dates';
+import { dateShort, daysBetween, inDays, monthName } from '../domain/dates';
+import { chargesFromToday, envisaged } from '../domain/forecast';
+import { monthSummary } from '../domain/budget';
 import { eur } from '../domain/money';
 import { FREQ, deadline, inTrial, isActive, monthlyEq, monthlyTotal, nextDue, sortByDeadline } from '../domain/subs';
 import { other, type MemberKey, type SubscriptionRec } from '../domain/types';
 import { useStore } from '../data/store';
-import { IconBell, IconBellOff, IconWarn } from '../ui/icons';
-import { Seg } from '../ui/kit';
+import { IconBell, IconBellOff, IconBulb, IconCheck, IconWarn } from '../ui/icons';
+import { Seg, toast } from '../ui/kit';
 import { RefreshButton, SyncLine } from './Budget';
 
 type Filter = 'tous' | 'perso' | 'communs' | 'soeur';
 
-export function Subscriptions(props: { today: string; onOpen: (sub: SubscriptionRec) => void }) {
+export function Subscriptions(props: { today: string; onOpen: (sub: SubscriptionRec) => void; onSim: (sub?: SubscriptionRec) => void }) {
   const store = useStore();
   const s = store.snapshot();
   const me = store.config!.me;
@@ -24,6 +26,17 @@ export function Subscriptions(props: { today: string; onOpen: (sub: Subscription
     filter === 'tous' ? x.owner !== herKey : filter === 'perso' ? x.owner === me : filter === 'communs' ? x.owner === 'commun' : x.owner === herKey;
   const list = sortByDeadline(s.subscriptions.filter((x) => isActive(x) && keep(x)), props.today);
   const stopped = s.subscriptions.filter((x) => !isActive(x) && keep(x)).sort((x, y) => x.name.localeCompare(y.name));
+  const envMonthly = envisaged(s, me, props.today).monthly;
+  const envList = s.envSubs.filter(keep).sort((x, y) => x.name.localeCompare(y.name));
+  const month = props.today.slice(0, 7);
+  const reste = monthSummary(s, me, month).reste;
+
+  function take(sub: SubscriptionRec) {
+    const { envisage: _drop, ...rest } = sub;
+    store.put<SubscriptionRec>({ ...rest, id: sub.id, createdAt: Date.now() });
+    store.materialize(props.today);
+    toast(`${sub.name} ajouté à tes abonnements`);
+  }
 
   return (
     <main className="screen">
@@ -37,10 +50,61 @@ export function Subscriptions(props: { today: string; onOpen: (sub: Subscription
         <span className="label">Tes abonnements te coûtent</span>
         <span><span className="big-num">{eur(total)}</span> <span className="per" style={{ fontSize: 18 }}>/mois</span></span>
         <span className="muted">soit {eur(total * 12)} par an, ta part du commun comprise</span>
+        {envMonthly > 0 && (
+          <span className="env-line" style={{ minHeight: 0 }}>
+            <span>Avec ce que tu envisages : <b style={{ fontSize: 16 }}>{eur(total + envMonthly)}/mois</b>, soit {eur((total + envMonthly) * 12)}/an</span>
+          </span>
+        )}
       </section>
+      {filter !== 'soeur' && (
+        <button className="btn dashed block" type="button" onClick={() => props.onSim()}><IconBulb />Et si je prenais un abonnement ?</button>
+      )}
 
       <Seg<Filter> wide extra="tight" items={[['tous', 'Tous'], ['perso', 'Perso'], ['communs', 'Communs'], ['soeur', her]]} value={filter} onChange={setFilter} label="Abonnements à montrer" />
       {filter === 'soeur' && <p className="pill-note">Abonnements de {her} · lecture seule</p>}
+
+      {envList.length > 0 && (
+        <>
+          <h2 className="section-label">Envisagés</h2>
+          {envList.map((x) => {
+            const can = x.owner !== herKey;
+            const charges = chargesFromToday(x, month, props.today).length;
+            const cost = charges * shareAmt(can ? me : herKey, x);
+            const line = !charges
+              ? `Rien à payer en ${monthName(month)}`
+              : can && reste !== null
+                ? `Ton reste du mois passerait à ${eur(reste - cost)}`
+                : `Coûterait ${eur(cost)} en ${monthName(month)}`;
+            const head = (
+              <>
+                <span className="li-main">
+                  <span className="sub-name">
+                    <b>{x.name}</b>
+                    <span className="badge plain">Envisagé</span>
+                    {x.owner === 'commun' && <span className="badge soft">Commun</span>}
+                  </span>
+                  <span className="li-sub">{line}</span>
+                </span>
+                <span className="li-amt">
+                  <span>{eur(x.amount)}<span className="per">{FREQ[x.freq].per}</span></span>
+                  <span className="sm muted">{eur(monthlyEq(x) * 12)}/an</span>
+                </span>
+              </>
+            );
+            return (
+              <div className="dash-card" key={x.id}>
+                <button type="button" className="env-head" onClick={() => props.onSim(x)}>{head}</button>
+                {can && (
+                  <div className="grid2" style={{ marginTop: 8 }}>
+                    <button className="btn sm" type="button" onClick={() => props.onSim(x)}>Voir l'impact</button>
+                    <button className="btn sm primary" type="button" onClick={() => take(x)}><IconCheck />Je le prends</button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </>
+      )}
 
       <h2 className="section-label">Par date limite de résiliation</h2>
       {list.length === 0 && (

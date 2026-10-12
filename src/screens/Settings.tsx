@@ -169,7 +169,7 @@ export function Settings(props: { onBack: () => void; onInvite: () => void; syst
           <button className="btn primary block" type="button" onClick={props.onInvite}>Inviter ma sœur</button>
           <button className="link-btn" type="button" onClick={() => setForget(true)}>Déconnecter ce téléphone</button>
         </section>
-        <p className="foot-note">PasD'Tal' · étape 2 · tes données restent dans ton Google Drive.</p>
+        <p className="foot-note">PasD'Tal' · étape 3 · tes données restent dans ton Google Drive.</p>
       </main>
 
       {toDelete && (
